@@ -40,7 +40,7 @@ def run_system(language_codes, total_samples, mix_ratio, format_type, topic):
         print("Invalid format selected!")
         return
 
-    print(f"\n✅ {format_type.upper()} dataset generated successfully!")
+    print(f"\n {format_type.upper()} dataset generated successfully!")
 
 
 def get_user_input():
@@ -96,6 +96,6 @@ if __name__ == "__main__":
         language_codes, total_samples, mix_ratio, format_type, topic = get_user_input()
         run_system(language_codes, total_samples, mix_ratio, format_type, topic)
     except ValueError as e:
-        print(f"\n❌ Input error: {e}")
+        print(f"\n Input error: {e}")
     except KeyboardInterrupt:
         print("\n\nAborted.")
