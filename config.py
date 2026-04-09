@@ -20,4 +20,4 @@ LANG_CODE_MAP = {
 DEFAULT_MODEL = "llama3"
 
 # Ollama API endpoint (default local)
-OLLAMA_URL = "http://localhost:11434/api/generate"
+OLLAMA_URL = "http://localhost:11525/api/generate"
