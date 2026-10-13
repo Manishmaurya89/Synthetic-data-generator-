@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual environments
+.venv*/
+venv/
+
+# Generated datasets and documents
+outputs/
+
+# macOS
+.DS_Store
+
+# Editor settings
+.vscode/

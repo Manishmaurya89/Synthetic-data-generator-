@@ -1,29 +1,37 @@
-from generator import generate_sentences
-from mixer import mix_languages
+from generator import check_ollama, generate_sentences
+from mixer import allocate_counts, mix_languages
 from output import save_txt, save_json, save_csv, save_pdf
 from media import generate_audio_dataset
-from config import LANG_CODE_MAP
+from config import DEFAULT_MODEL, LANG_CODE_MAP, OUTPUT_DIR
+
+FORMATS = ("txt", "json", "csv", "pdf", "audio")
 
 
 def run_system(language_codes, total_samples, mix_ratio, format_type, topic):
-    language_data = {}
-
-    # Generate data for each language
-    for code in language_codes:
-        print(f"Generating sentences for: {LANG_CODE_MAP[code]}...")
-        language_data[code] = generate_sentences(code, total_samples, topic)
-
     # Monolingual
     if len(language_codes) == 1:
-        data = language_data[language_codes[0]]
+        counts = {language_codes[0]: total_samples}
 
     # Multilingual
     else:
-        data = mix_languages(language_data, mix_ratio)
+        counts = allocate_counts(total_samples, mix_ratio)
+
+    # Generate data for each language
+    language_data = {}
+
+    for code, count in counts.items():
+        if count > 0:
+            print(f"Generating sentences for: {LANG_CODE_MAP[code]}...")
+            language_data[code] = generate_sentences(code, count, topic)
+
+    data = mix_languages(language_data)
 
     if not data:
-        print("No data generated. Check your Ollama connection and model.")
+        print("No sentences were generated. Is Ollama running?")
         return
+
+    if len(data) < total_samples:
+        print(f"Warning: the dataset has {len(data)} of the {total_samples} samples requested")
 
     # Save output
     if format_type == "txt":
@@ -35,67 +43,104 @@ def run_system(language_codes, total_samples, mix_ratio, format_type, topic):
     elif format_type == "pdf":
         save_pdf(data, topic)
     elif format_type == "audio":
-        generate_audio_dataset(data)
+        if generate_audio_dataset(data) == 0:
+            print("No audio could be created (gTTS needs an internet connection).")
+            return
     else:
         print("Invalid format selected!")
         return
 
-    print(f"\n {format_type.upper()} dataset generated successfully!")
+    print(f"{format_type.upper()} dataset generated successfully in {OUTPUT_DIR}")
+
+
+def ask_int(prompt, min_value):
+    value = input(prompt).strip()
+
+    try:
+        number = int(value)
+    except ValueError:
+        raise ValueError(f"Expected a whole number, got: {value!r}")
+
+    if number < min_value:
+        raise ValueError(f"Expected a number of at least {min_value}, got: {number}")
+
+    return number
 
 
 def get_user_input():
-    print("\n=== Synthetic Data Generator ===")
     print("\nSupported language codes:")
     print(", ".join(LANG_CODE_MAP.keys()))
 
     # Languages
-    language_codes = [
+    language_codes = list(dict.fromkeys(
         code.strip().lower()
         for code in input("\nEnter language code(s) (e.g. eng or eng,hin): ").split(",")
-    ]
+        if code.strip()
+    ))
+
+    if not language_codes:
+        raise ValueError("Enter at least one language code")
 
     # Validate codes
     for code in language_codes:
         if code not in LANG_CODE_MAP:
-            raise ValueError(f"Unsupported language code: '{code}'")
+            raise ValueError(f"Unsupported language code: {code}")
 
     # Dataset size
-    total_samples = int(input("Enter number of samples: "))
-    if total_samples <= 0:
-        raise ValueError("Number of samples must be greater than 0.")
+    total_samples = ask_int("Enter number of samples: ", 1)
 
     # Topic
     topic = input("Enter topic: ").strip()
+
     if not topic:
-        raise ValueError("Topic cannot be empty.")
+        raise ValueError("Topic cannot be empty")
 
     # Format
-    format_type = input("Format (txt/json/csv/pdf/audio): ").strip().lower()
-    if format_type not in ("txt", "json", "csv", "pdf", "audio"):
-        raise ValueError(f"Unsupported format: '{format_type}'")
+    format_type = input(f"Format ({'/'.join(FORMATS)}): ").strip().lower()
 
-    # Mixing ratio
+    if format_type not in FORMATS:
+        raise ValueError(f"Invalid format: {format_type!r}. Choose one of: {', '.join(FORMATS)}")
+
+    # Mixing
     mix_ratio = {}
     if len(language_codes) > 1:
         print("\nEnter percentage for each language (must sum to 100):")
         total = 0
 
         for code in language_codes:
-            percent = int(input(f"  {code} (%): "))
+            percent = ask_int(f"  {code} (%): ", 0)
             mix_ratio[code] = percent
             total += percent
 
         if total != 100:
-            raise ValueError(f"Total percentage must equal 100, got {total}.")
+            raise ValueError(f"Total percentage must equal 100, got {total}")
 
     return language_codes, total_samples, mix_ratio, format_type, topic
 
 
+def main():
+    print("\n=== Synthetic Data Generator ===")
+
+    try:
+        check_ollama()
+        print(f"Using local model: {DEFAULT_MODEL}")
+
+        language_codes, total_samples, mix_ratio, format_type, topic = get_user_input()
+    except (RuntimeError, ValueError) as e:
+        print(f"Error: {e}")
+        raise SystemExit(1)
+
+    run_system(
+        language_codes,
+        total_samples,
+        mix_ratio,
+        format_type,
+        topic
+    )
+
+
 if __name__ == "__main__":
     try:
-        language_codes, total_samples, mix_ratio, format_type, topic = get_user_input()
-        run_system(language_codes, total_samples, mix_ratio, format_type, topic)
-    except ValueError as e:
-        print(f"\n Input error: {e}")
+        main()
     except KeyboardInterrupt:
         print("\n\nAborted.")

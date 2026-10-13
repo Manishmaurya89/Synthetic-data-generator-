@@ -1,33 +1,55 @@
+import math
+import re
 import requests
-import random
-from config import LANG_CODE_MAP, DEFAULT_MODEL, OLLAMA_URL
+from config import LANG_CODE_MAP, DEFAULT_MODEL, OLLAMA_URL, OLLAMA_TAGS_URL
+from scripts import has_foreign_letters, script_share
+
+
+BATCH_SIZE = 60
+MAX_CALLS_PER_BATCH = 3
+MIN_SCRIPT_SHARE = 0.7
+
+LIST_MARKER = re.compile(r"^(?:[-*•]|\d{1,3}[.)])\s+")
 
 
 
-def clean_output(lines):
+def clean_output(text, language_code):
     cleaned = []
 
-    for line in lines:
-        line = line.strip()
+    for line in text.split("\n"):
+        # Remove numbering and bullets
+        line = LIST_MARKER.sub("", line.strip()).strip()
 
         # Remove unwanted intro text
-        if line.lower().startswith("here are"):
+        if line.lower().startswith("here are") or line.endswith(":"):
             continue
-
-        # Remove numbering (1. 2. )
-        if line[:3].strip().replace(".", "").isdigit():
-            line = line.split(".", 1)[-1].strip()
 
         # Remove short lines
         if len(line) < 5:
             continue
 
+        # Remove sentences in other languages
+        if script_share(line, language_code) < MIN_SCRIPT_SHARE or has_foreign_letters(line, language_code):
+            continue
+
         cleaned.append(line)
 
     # Remove duplicates
-    cleaned = list(set(cleaned))
+    return list(dict.fromkeys(cleaned))
 
-    return cleaned
+
+
+def check_ollama():
+    try:
+        response = requests.get(OLLAMA_TAGS_URL, timeout=5)
+        response.raise_for_status()
+    except requests.RequestException:
+        raise RuntimeError("Ollama is not running. Install it from https://ollama.com and start it (or run: ollama serve)")
+
+    installed = [model["name"] for model in response.json().get("models", [])]
+
+    if DEFAULT_MODEL not in installed and f"{DEFAULT_MODEL}:latest" not in installed:
+        raise RuntimeError(f"Model '{DEFAULT_MODEL}' is not downloaded. Run: ollama pull {DEFAULT_MODEL}")
 
 
 
@@ -38,23 +60,19 @@ def call_llm(prompt):
             json={
                 "model": DEFAULT_MODEL,
                 "prompt": prompt,
-                "stream": False
+                "stream": False,
+                "options": {"temperature": 0.9}
             },
             timeout=120
         )
 
         response.raise_for_status()
 
-        text = response.json().get("response", "")
-
-        lines = [line.strip() for line in text.split("\n") if line.strip()]
-        lines = clean_output(lines)
-
-        return lines
+        return response.json().get("response", "")
 
     except Exception as e:
         print("LLM Error:", e)
-        return []
+        return None
 
 
 
@@ -217,23 +235,30 @@ Rules:
 
 
 def generate_sentences(language_code, total_count, topic):
-    base_size = 60
-
-    prompt = build_prompt(language_code, base_size, topic)
-
-    base = call_llm(prompt)
-
-    if not base:
-        print(f"Failed for {language_code}")
+    if total_count <= 0:
         return []
 
-    data = []
+    batch_size = min(BATCH_SIZE, total_count)
+    max_calls = math.ceil(total_count / batch_size) * MAX_CALLS_PER_BATCH
 
-    while len(data) < total_count:
-     random.shuffle(base)
-     data.extend(base)
+    prompt = build_prompt(language_code, batch_size, topic)
 
-# Trim to required size
-    data = data[:total_count]
+    sentences = {}
 
-    return data[:total_count]
+    for _ in range(max_calls):
+        if len(sentences) >= total_count:
+            break
+
+        text = call_llm(prompt)
+
+        if text is None:
+            break
+
+        sentences.update(dict.fromkeys(clean_output(text, language_code)))
+
+    data = list(sentences)[:total_count]
+
+    if len(data) < total_count:
+        print(f"Warning: only {len(data)} of {total_count} unique {LANG_CODE_MAP[language_code]} sentences were generated")
+
+    return data

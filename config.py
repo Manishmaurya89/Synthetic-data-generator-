@@ -1,4 +1,9 @@
-## Language code → full name mapping
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FONT_DIR = os.path.join(BASE_DIR, "fonts")
+OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
+
 LANG_CODE_MAP = {
     "eng": "English",
     "hin": "Hindi",
@@ -15,9 +20,60 @@ LANG_CODE_MAP = {
     "sin": "Sinhala"
 }
 
-# Ollama model to use for generation
-# Change to any model available in your local Ollama instance
-DEFAULT_MODEL = "llama3"
+# gTTS voice for each language
+GTTS_LANG_MAP = {
+    "eng": "en",
+    "hin": "hi",
+    "ben": "bn",
+    "urd": "ur",
+    "tam": "ta",
+    "tel": "te",
+    "mar": "mr",
+    "guj": "gu",
+    "pan": "pa",
+    "mal": "ml",
+    "kan": "kn",
+    "nep": "ne",
+    "sin": "si"
+}
 
-# Ollama API endpoint (default local)
-OLLAMA_URL = "http://localhost:11525/api/generate"
+# Unicode ranges for each script
+SCRIPT_RANGES = {
+    "eng": [("A", "Z"), ("a", "z"), ("\u00C0", "\u024F")],
+    "hin": [("\u0900", "\u097F")],
+    "ben": [("\u0980", "\u09FF")],
+    "urd": [("\u0600", "\u06FF"), ("\u0750", "\u077F"), ("\uFB50", "\uFDFF"), ("\uFE70", "\uFEFF")],
+    "tam": [("\u0B80", "\u0BFF")],
+    "tel": [("\u0C00", "\u0C7F")],
+    "mar": [("\u0900", "\u097F")],
+    "guj": [("\u0A80", "\u0AFF")],
+    "pan": [("\u0A00", "\u0A7F")],
+    "mal": [("\u0D00", "\u0D7F")],
+    "kan": [("\u0C80", "\u0CFF")],
+    "nep": [("\u0900", "\u097F")],
+    "sin": [("\u0D80", "\u0DFF")]
+}
+
+# PDF fonts
+FONT_FILES = {
+    "eng": None,
+    "hin": "NotoSansDevanagari.ttf",
+    "ben": "NotoSansBengali-Regular.ttf",
+    "urd": "NotoNaskhArabic-Regular.ttf",
+    "tam": "NotoSansTamil-Regular.ttf",
+    "tel": "NotoSansTelugu-Regular.ttf",
+    "mar": "NotoSansDevanagari.ttf",
+    "guj": "NotoSansGujarati-Regular.ttf",
+    "pan": "NotoSansGurmukhi-Regular.ttf",
+    "mal": "NotoSansMalayalam-Regular.ttf",
+    "kan": "NotoSansKannada-Regular.ttf",
+    "nep": "NotoSansDevanagari.ttf",
+    "sin": "NotoSansSinhala-Regular.ttf"
+}
+
+# Languages written right-to-left
+RTL_LANGUAGES = {"urd"}
+
+DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "llama3")
+OLLAMA_URL = "http://localhost:11434/api/generate"
+OLLAMA_TAGS_URL = "http://localhost:11434/api/tags"
