@@ -131,10 +131,6 @@ Every file lands in `outputs/`.
 | `pdf` | `dataset.pdf` | The topic as a title, then every sentence in its script's own font |
 | `audio` | `audio/*.mp3` + `audio/metadata.csv` | One clip per sentence in that language's voice, with a CSV linking each clip to its text |
 
-One PDF, all 13 scripts, rendered with proper letter shaping and right-to-left Urdu:
-
-<img src="docs/pdf-preview.png" alt="PDF with one sentence about the water cycle in each of the 13 supported languages" width="640">
-
 ## See real output
 
 Browse [`examples/`](examples) for unedited datasets generated with this tool: 25 sentences in each of the 13
