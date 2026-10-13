@@ -1,7 +1,7 @@
 import requests
 import json
 import re
-from config import LANG_CODE_MAP, OLLAMA_URL, OLLAMA_TAGS_URL, DEFAULT_MODEL
+from config import LANG_CODE_MAP, OLLAMA_URL
 
 
 WORDS_PER_PAGE = 400
@@ -45,32 +45,19 @@ Rules:
 """
 
 
-def check_ollama():
-    try:
-        response = requests.get(OLLAMA_TAGS_URL, timeout=5)
-        response.raise_for_status()
-    except requests.RequestException:
-        raise RuntimeError("Ollama is not running. Install it from https://ollama.com and start it (or run: ollama serve)")
-
-    installed = [model["name"] for model in response.json().get("models", [])]
-
-    if DEFAULT_MODEL not in installed and f"{DEFAULT_MODEL}:latest" not in installed:
-        raise RuntimeError(f"Model '{DEFAULT_MODEL}' is not downloaded. Run: ollama pull {DEFAULT_MODEL}")
-
-
 def strip_code_fences(text):
     match = re.match(r"^```(?:json)?\s*(.*?)\s*```$", text.strip(), re.DOTALL)
     return match.group(1) if match else text
 
 
-def generate_document(topic, pages, language_code="eng"):
+def generate_document(topic, pages, language_code, model):
     prompt = build_prompt(topic, pages, language_code)
     max_tokens = pages * TOKENS_PER_PAGE
 
     response = requests.post(
         OLLAMA_URL,
         json={
-            "model": DEFAULT_MODEL,
+            "model": model,
             "prompt": prompt,
             "stream": False,
             "format": "json",

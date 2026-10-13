@@ -1,55 +1,57 @@
-# Synthetic Document Generation
+# Synthetic Document Generator
 
-Part of the [Synthetic Data Generator](../README.md): generate synthetic documents with a free local LLM.
+**Generate complete structured documents as JSON and PDF with any local LLM in Ollama.**
 
-It writes a structured article (headings, paragraphs, lists, tables) with a model running in Ollama, renders it as a
-PDF, then reads the PDF back with Docling and extracts named entities with GLiNER. Since you keep the original JSON,
-you know exactly what each PDF contains, which is what you need to build and test document-parsing pipelines.
+Part of the [Synthetic Data Generator](../README.md). Give it a topic and it writes a full article with headings,
+paragraphs, bullet lists and tables, then renders it as a clean PDF. Because the JSON records exactly what the PDF
+contains, every pair works as ready-made test data for document parsers, layout models and RAG pipelines.
 
-```
-LLM → article JSON → PDF → Docling (structure) → GLiNER (named entities)
-```
+## Run it
 
-## Setup
+Reuse the main project's environment:
 
 ```bash
-ollama pull llama3        # any Ollama model works, see below
+cd "Synthetic Document Generation"
+../.venv/bin/python main.py
+```
+
+Or set it up on its own:
+
+```bash
 python3 -m venv venv
 venv/bin/pip install -r requirements.txt
-```
-
-On the first run, Docling and GLiNER download their models from Hugging Face. After that, everything runs offline.
-
-## Run
-
-Set `topic`, `pages` and `language` (`"eng"` or `"hin"`) in `main.py`, then:
-
-```bash
 venv/bin/python main.py
 ```
 
-To use a different local model:
+Then answer the prompts, or press Enter to accept each default:
 
-```bash
-OLLAMA_MODEL=gemma4 venv/bin/python main.py
+```
+=== Synthetic Document Generator ===
+
+Local Ollama models:
+  1. gemma4-32k:latest  (9.6 GB)
+  2. llama3:latest  (4.7 GB)
+Type a number, or any model name from ollama.com/library to download it.
+Model [llama3:latest]:
+Using local model: llama3:latest
+
+Topic [Impact of Artificial Intelligence on Healthcare]: Renewable energy in India
+Pages [2]: 3
+Language (eng/hin) [eng]: hin
 ```
 
-Everything is written to `outputs/`:
+## Output
 
 | File | Contents |
 | --- | --- |
-| `output.json` | The article as the LLM wrote it |
-| `final_output.pdf` | The rendered article |
-| `docling_output.json` | Docling's full parse of the PDF |
-| `extracted_text.txt` | Cleaned text from the PDF |
-| `structured_output.json` | The text grouped into sections by heading |
-| `entities.json` | Named entities with their positions in `extracted_text.txt` |
+| `outputs/output.json` | The article: title, then sections with headings, paragraphs, lists and tables |
+| `outputs/final_output.pdf` | The same article, rendered with wrapped tables and bullet lists |
 
-In our test, a two-page article took about 50 seconds end to end with llama3.
+## Tips
 
-## Notes
+- **Scale the length** with the page count. Each page asks the model for about 400 words.
+- **Pick any model.** Choose from the menu, type a new name to download it, or set `OLLAMA_MODEL` to change the default.
+- **Write in Hindi** by choosing `hin`. The PDF uses a Devanagari font with proper letter shaping.
 
-- `urchade/gliner_base` is an English model. For Hindi documents, `urchade/gliner_multi-v2.1` in
-  `gliner_processor.py` will find far more entities.
-- The Devanagari font in `fonts/` is a [Noto](https://github.com/notofonts) font, licensed under the
-  SIL Open Font License 1.1 (see `fonts/OFL.txt`).
+The Devanagari font in `fonts/` is a [Noto](https://github.com/notofonts) font under the SIL Open Font License 1.1
+(see `fonts/OFL.txt`).

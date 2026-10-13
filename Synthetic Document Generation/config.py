@@ -18,3 +18,4 @@ FONT_FILES = {
 DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "llama3")
 OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_TAGS_URL = "http://localhost:11434/api/tags"
+OLLAMA_PULL_URL = "http://localhost:11434/api/pull"

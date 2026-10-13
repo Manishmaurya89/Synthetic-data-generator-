@@ -1,7 +1,7 @@
 import math
 import re
 import requests
-from config import LANG_CODE_MAP, DEFAULT_MODEL, OLLAMA_URL, OLLAMA_TAGS_URL
+from config import LANG_CODE_MAP, OLLAMA_URL
 from scripts import has_foreign_letters, script_share
 
 
@@ -39,31 +39,17 @@ def clean_output(text, language_code):
 
 
 
-def check_ollama():
-    try:
-        response = requests.get(OLLAMA_TAGS_URL, timeout=5)
-        response.raise_for_status()
-    except requests.RequestException:
-        raise RuntimeError("Ollama is not running. Install it from https://ollama.com and start it (or run: ollama serve)")
-
-    installed = [model["name"] for model in response.json().get("models", [])]
-
-    if DEFAULT_MODEL not in installed and f"{DEFAULT_MODEL}:latest" not in installed:
-        raise RuntimeError(f"Model '{DEFAULT_MODEL}' is not downloaded. Run: ollama pull {DEFAULT_MODEL}")
-
-
-
-def call_llm(prompt):
+def call_llm(prompt, model):
     try:
         response = requests.post(
             OLLAMA_URL,
             json={
-                "model": DEFAULT_MODEL,
+                "model": model,
                 "prompt": prompt,
                 "stream": False,
                 "options": {"temperature": 0.9}
             },
-            timeout=120
+            timeout=(10, 600)
         )
 
         response.raise_for_status()
@@ -234,7 +220,7 @@ Rules:
 
 
 
-def generate_sentences(language_code, total_count, topic):
+def generate_sentences(language_code, total_count, topic, model):
     if total_count <= 0:
         return []
 
@@ -249,7 +235,7 @@ def generate_sentences(language_code, total_count, topic):
         if len(sentences) >= total_count:
             break
 
-        text = call_llm(prompt)
+        text = call_llm(prompt, model)
 
         if text is None:
             break

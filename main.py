@@ -1,13 +1,14 @@
-from generator import check_ollama, generate_sentences
+from generator import generate_sentences
+from models import choose_model
 from mixer import allocate_counts, mix_languages
 from output import save_txt, save_json, save_csv, save_pdf
 from media import generate_audio_dataset
-from config import DEFAULT_MODEL, LANG_CODE_MAP, OUTPUT_DIR
+from config import LANG_CODE_MAP, OUTPUT_DIR
 
 FORMATS = ("txt", "json", "csv", "pdf", "audio")
 
 
-def run_system(language_codes, total_samples, mix_ratio, format_type, topic):
+def run_system(language_codes, total_samples, mix_ratio, format_type, topic, model):
     # Monolingual
     if len(language_codes) == 1:
         counts = {language_codes[0]: total_samples}
@@ -22,7 +23,7 @@ def run_system(language_codes, total_samples, mix_ratio, format_type, topic):
     for code, count in counts.items():
         if count > 0:
             print(f"Generating sentences for: {LANG_CODE_MAP[code]}...")
-            language_data[code] = generate_sentences(code, count, topic)
+            language_data[code] = generate_sentences(code, count, topic, model)
 
     data = mix_languages(language_data)
 
@@ -122,8 +123,8 @@ def main():
     print("\n=== Synthetic Data Generator ===")
 
     try:
-        check_ollama()
-        print(f"Using local model: {DEFAULT_MODEL}")
+        model = choose_model()
+        print(f"Using local model: {model}")
 
         language_codes, total_samples, mix_ratio, format_type, topic = get_user_input()
     except (RuntimeError, ValueError) as e:
@@ -135,7 +136,8 @@ def main():
         total_samples,
         mix_ratio,
         format_type,
-        topic
+        topic,
+        model
     )
 
 

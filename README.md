@@ -1,71 +1,76 @@
 # Synthetic Data Generator
 
-Generate synthetic datasets on your own computer with free, open-source LLMs running in [Ollama](https://ollama.com).
-No API key, no per-token billing, no daily token cap.
+**Generate unlimited synthetic training data on your own machine, for free, with any open-source LLM in Ollama.**
 
-## Why local?
+![Python 3.13](https://img.shields.io/badge/python-3.13-3776AB?logo=python&logoColor=white)
+![Runs on Ollama](https://img.shields.io/badge/runs%20on-Ollama-000000?logo=ollama&logoColor=white)
+![API cost: $0](https://img.shields.io/badge/API%20cost-%240-brightgreen)
+![13 languages](https://img.shields.io/badge/languages-13-orange)
+![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 
-A useful synthetic dataset needs a lot of LLM output. Paid APIs such as OpenRouter or OpenAI bill for every token,
-and free tiers limit how many requests or tokens you get per day. That makes large datasets expensive or slow to build.
+Stop paying per token. Stop hitting free-tier limits. Pick any model from Ollama, give it a topic, and turn it into
+a clean, deduplicated dataset in 13 languages, or into complete structured documents. No API key required.
 
-Running the model on your own machine removes those limits:
+## Why go local?
 
-- **Free to run.** Once a model is downloaded, generating more data costs only time and electricity.
-- **No rate limits or daily caps.** Generate as much as your hardware can handle.
-- **Your data stays with you.** Prompts and outputs never go to a third-party API (audio is the one exception, see [What runs offline](#what-runs-offline)).
-- **Any open model.** Switch between llama3, Gemma, Qwen and others with one environment variable.
-
-## What it generates
-
-| Tool | Folder | Output |
+|  | Hosted LLM APIs | Synthetic Data Generator |
 | --- | --- | --- |
-| Multilingual sentence datasets | this folder | Unique sentences on any topic, in one language or a mix, as TXT, JSON, CSV, PDF or audio |
-| Synthetic documents | [`Synthetic Document Generation/`](Synthetic%20Document%20Generation/README.md) | Structured articles (headings, paragraphs, lists, tables) as JSON and PDF, parsed back with Docling, with named entities from GLiNER |
+| **Cost** | Pay for every token | Free once the model is downloaded |
+| **Limits** | Rate limits and daily caps on free tiers | None. Scale with your hardware |
+| **Privacy** | Prompts and data go to the provider | Everything stays on your machine* |
+| **Models** | The provider's catalog | Any model in the [Ollama library](https://ollama.com/library) |
 
-### Supported languages
+<sub>*Except the audio format, which uses Google's online text-to-speech (gTTS).</sub>
 
-| Code | Language | Code | Language | Code | Language |
-| --- | --- | --- | --- | --- | --- |
-| `eng` | English | `tel` | Telugu | `mal` | Malayalam |
-| `hin` | Hindi | `mar` | Marathi | `kan` | Kannada |
-| `ben` | Bengali | `guj` | Gujarati | `nep` | Nepali |
-| `urd` | Urdu | `pan` | Punjabi | `sin` | Sinhala |
-| `tam` | Tamil | | | | |
+## Features
 
-## Requirements
-
-- [Ollama](https://ollama.com/download)
-- Python 3.13 (the version it's tested with)
-- Enough RAM for your model. As a rough guide, 8 GB free for an 8B model like llama3; bigger models need more.
+- **Generate** unique sentences on any topic in 13 languages
+- **Mix** languages by percentage, such as 60% Hindi and 40% English, with exact sample counts
+- **Choose** any installed Ollama model from a menu, or **download** a new one just by typing its name
+- **Filter** out numbering, intro lines, duplicates and wrong-language sentences automatically
+- **Export** to TXT, JSON, CSV, PDF or MP3 audio
+- **Render** PDFs in every script, with proper letter shaping and right-to-left Urdu
+- **Create** full structured documents with headings, paragraphs, lists and tables, as JSON and PDF
 
 ## Quick start
 
-```bash
-# 1. Install Ollama, then download a model
-ollama pull llama3
+**1. Install Ollama** from [ollama.com/download](https://ollama.com/download) and start it.
 
-# 2. Get the code and install the Python packages
+**2. Clone and set up the project:**
+
+```bash
 git clone https://github.com/Manishmaurya89/Synthetic-data-generator-.git
 cd Synthetic-data-generator-
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
+```
 
-# 3. Generate a dataset
+**3. Run it:**
+
+```bash
 .venv/bin/python main.py
 ```
 
-A typical session:
+No model yet? Type a name like `llama3` at the model prompt and the tool downloads it for you.
+
+### Example session
 
 ```
 === Synthetic Data Generator ===
-Using local model: llama3
+
+Local Ollama models:
+  1. gemma4-32k:latest  (9.6 GB)
+  2. llama3:latest  (4.7 GB)
+Type a number, or any model name from ollama.com/library to download it.
+Model [llama3:latest]: 1
+Using local model: gemma4-32k:latest
 
 Supported language codes:
 eng, hin, ben, urd, tam, tel, mar, guj, pan, mal, kan, nep, sin
 
 Enter language code(s) (e.g. eng or eng,hin): eng,hin
 Enter number of samples: 200
-Enter topic: Newton's laws of motion
+Enter topic: photosynthesis
 Format (txt/json/csv/pdf/audio): json
 
 Enter percentage for each language (must sum to 100):
@@ -76,101 +81,130 @@ Generating sentences for: Hindi...
 JSON dataset generated successfully in .../outputs
 ```
 
-If Ollama isn't running or the model isn't downloaded, the tool says so and prints the command that fixes it.
+## Use any Ollama model
 
-## Choosing a model
+Every run starts with a menu of the models you already have. Pick one by number, press Enter for the default, or
+type any name from the [Ollama library](https://ollama.com/library) to download it on the spot:
 
-llama3 is the default. To use any other model you've pulled, set `OLLAMA_MODEL`:
+```
+Model [llama3:latest]: qwen2.5
+'qwen2.5' is not downloaded. Download it now? (y/n): y
+
+Downloading qwen2.5. Large models can take a while...
+  qwen2.5 is ready.
+```
+
+To change which model Enter picks, set `OLLAMA_MODEL`:
 
 ```bash
-ollama pull gemma4
 OLLAMA_MODEL=gemma4 .venv/bin/python main.py
 ```
 
-Browse models at [ollama.com/library](https://ollama.com/library). Some tips:
+### Pick the right model
 
-- **Multilingual quality varies a lot between models.** Asked for 27 Urdu sentences, llama3 produced only 9 that
-  passed the language check, while a Gemma 4 model produced all 27. If you see a warning that a language came up
-  short, try a bigger or more multilingual model.
-- **Smaller models are faster, larger ones write better and more varied sentences.** Pick based on your hardware and
-  how much data you need.
+- **Start with `llama3`** (4.7 GB). It's fast and strong in English.
+- **Switch models for South Asian languages.** In our tests, asked for 27 Urdu sentences, llama3 delivered 9 that
+  passed the language check, while a Gemma 4 model delivered all 27. If you see a warning that a language came up
+  short, try another model.
+- **Match the model to your RAM.** Plan on roughly 8 GB for 7–8B models, 16 GB for 13–14B and 32 GB for 30B+.
+  Bigger models write richer, more varied sentences; smaller ones finish faster.
+
+## Supported languages
+
+| Code | Language | Code | Language | Code | Language |
+| --- | --- | --- | --- | --- | --- |
+| `eng` | English | `tel` | Telugu | `mal` | Malayalam |
+| `hin` | Hindi | `mar` | Marathi | `kan` | Kannada |
+| `ben` | Bengali | `guj` | Gujarati | `nep` | Nepali |
+| `urd` | Urdu | `pan` | Punjabi | `sin` | Sinhala |
+| `tam` | Tamil | | | | |
 
 ## Output formats
 
-Files are written to `outputs/`.
+Every file lands in `outputs/`.
 
 | Format | File | Contents |
 | --- | --- | --- |
 | `txt` | `dataset.txt` | One sentence per line |
 | `json` | `dataset.json` | `[{"text": "...", "language": "hin"}, ...]` |
 | `csv` | `dataset.csv` | `text` and `language` columns |
-| `pdf` | `dataset.pdf` | The topic as a title, then every sentence in its own script's font (Urdu right-to-left) |
-| `audio` | `audio/*.mp3` and `audio/metadata.csv` | One clip per sentence, in that language's voice; the CSV links each file to its text |
+| `pdf` | `dataset.pdf` | The topic as a title, then every sentence in its script's own font |
+| `audio` | `audio/*.mp3` + `audio/metadata.csv` | One clip per sentence in that language's voice, with a CSV linking each clip to its text |
 
-## Data quality
-
-The LLM is asked for 60 sentences per call, and it keeps calling until it has enough unique sentences. Each one goes
-through these checks:
-
-1. **Cleanup:** numbering, bullets and intro lines like "Here are 60 sentences:" are removed.
-2. **Language check:** at least 70% of the letters must be in the language's own script, and none can come from a
-   third script.
-3. **Deduplication:** every sentence in a dataset is unique.
-
-If the model can't produce enough sentences, you get a warning and a smaller dataset, never one padded with
-repeats. For mixed datasets, the percentages always add up to the exact number of samples you asked for.
-
-## Synthetic documents
-
-The second tool generates whole documents rather than sentences:
+## How it works
 
 ```
-LLM → article JSON → PDF → Docling (structure) → GLiNER (named entities)
+Topic + languages + model
+  → Prompt the local LLM in each language, in that language
+  → Clean    strip numbering, bullets and intro lines
+  → Check    keep only sentences written in the right script
+  → Dedupe   drop repeats, then ask again until there are enough unique sentences
+  → Mix      split the samples by your percentages and shuffle
+  → Export   TXT, JSON, CSV, PDF or MP3
 ```
 
-Because you have the original JSON, you know exactly what the PDF contains, which makes the output useful for
-building and testing document-parsing and information-extraction pipelines. See its
-[README](Synthetic%20Document%20Generation/README.md) for setup.
+### Built-in quality checks
 
-## What runs offline
+- **Unique by design.** Every sentence in a dataset is unique. If a model can't produce enough, you get a warning
+  and a smaller dataset, never one padded with repeats.
+- **Right language, right script.** At least 70% of each sentence's letters must be in the language's own script,
+  and stray letters from any third script reject the sentence.
+- **Exact counts.** Mixed datasets always add up to the number of samples you asked for.
 
-| Step | Local? |
-| --- | --- |
-| Text generation (Ollama) | Yes |
-| TXT, JSON, CSV and PDF output | Yes |
-| Audio (gTTS) | No, it uses Google's online text-to-speech |
-| Docling and GLiNER | Yes, after downloading their models from Hugging Face on the first run |
+## Generate structured documents
+
+Need whole documents instead of sentences? The document generator writes a complete article with headings,
+paragraphs, bullet lists and tables, then renders it as a PDF. The JSON tells you exactly what the PDF contains,
+which makes the pair ready-made test data for document parsers, layout models and RAG pipelines.
+
+```bash
+cd "Synthetic Document Generation"
+../.venv/bin/python main.py
+```
+
+```
+Model [llama3:latest]:
+Topic [Impact of Artificial Intelligence on Healthcare]: Renewable energy in India
+Pages [2]: 3
+Language (eng/hin) [eng]: hin
+```
+
+It writes `outputs/output.json` and `outputs/final_output.pdf`. Details are in its
+[README](Synthetic%20Document%20Generation/README.md).
 
 ## Project structure
 
 ```
 .
-├── main.py            asks for your settings and runs everything
-├── generator.py       prompts the local LLM, cleans and checks the sentences
+├── main.py            run this: asks for your settings and runs everything
+├── models.py          lists, picks and downloads Ollama models
+├── generator.py       prompts the LLM, then cleans and checks every sentence
 ├── mixer.py           splits samples between languages and shuffles them
 ├── output.py          writes TXT, JSON, CSV and PDF files
-├── media.py           writes audio clips
+├── media.py           writes MP3 clips and their metadata
 ├── scripts.py         detects which script a piece of text is written in
-├── config.py          languages, fonts, model and paths
-├── fonts/             Noto fonts for the PDF output
+├── config.py          languages, fonts, default model and paths
+├── fonts/             Noto fonts for every supported script
 └── Synthetic Document Generation/
+                       generates structured documents as JSON and PDF
 ```
 
 ## Roadmap
 
-- Offline text-to-speech, so audio datasets don't need the internet either
-- Support for other local LLM servers such as LM Studio and llama.cpp
+- Offline text-to-speech, so audio datasets never need the internet
+- Support for other local servers such as LM Studio and llama.cpp
+- Command-line flags for scripted, non-interactive runs
 
 ## Contributing
 
 Pull requests are welcome. To add a language:
 
-1. Add its code to every table in `config.py`: `LANG_CODE_MAP`, `GTTS_LANG_MAP`, `SCRIPT_RANGES` and `FONT_FILES`
-   (and `RTL_LANGUAGES` if it's written right-to-left).
-2. Add a prompt written in that language to `build_prompt()` in `generator.py`.
-3. Put a font that covers its script in `fonts/`.
+1. **Register** its code in every table in `config.py`: `LANG_CODE_MAP`, `GTTS_LANG_MAP`, `SCRIPT_RANGES` and
+   `FONT_FILES` (plus `RTL_LANGUAGES` if it's written right-to-left).
+2. **Write** a prompt in that language in `build_prompt()` in `generator.py`.
+3. **Add** a font that covers its script to `fonts/`.
 
 ## License
 
-The code is released under the MIT License (see `LICENSE`). The fonts in `fonts/` are
-[Noto](https://github.com/notofonts) fonts, licensed under the SIL Open Font License 1.1 (see `fonts/OFL.txt`).
+Released under the MIT License (see `LICENSE`). The fonts in `fonts/` are [Noto](https://github.com/notofonts) fonts
+under the SIL Open Font License 1.1 (see `fonts/OFL.txt`).
