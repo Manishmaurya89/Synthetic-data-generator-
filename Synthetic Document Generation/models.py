@@ -22,6 +22,15 @@ def find_model(name, installed):
     return None
 
 
+def resolve_model(name):
+    model = find_model(name, [installed for installed, _ in list_models()])
+
+    if not model:
+        raise RuntimeError(f"Model '{name}' is not downloaded. Run: ollama pull {name}")
+
+    return model
+
+
 def pull_model(name):
     print(f"\nDownloading {name}. Large models can take a while...")
 

@@ -40,6 +40,21 @@ Pages [2]: 3
 Language (eng/hin) [eng]: hin
 ```
 
+## Run without questions
+
+Pass any of the settings as flags and the rest use their defaults:
+
+```bash
+../.venv/bin/python main.py --topic "Renewable energy in India" --pages 3 --language hin --model gemma4
+```
+
+| Flag | Meaning | Default |
+| --- | --- | --- |
+| `--topic` | What the document is about | Impact of Artificial Intelligence on Healthcare |
+| `--pages` | Length, about 400 words per page | `2` |
+| `--language` | `eng` or `hin` | `eng` |
+| `--model` | Ollama model to use | `llama3` |
+
 ## Output
 
 | File | Contents |
@@ -52,6 +67,12 @@ Language (eng/hin) [eng]: hin
 - **Scale the length** with the page count. Each page asks the model for about 400 words.
 - **Pick any model.** Choose from the menu, type a new name to download it, or set `OLLAMA_MODEL` to change the default.
 - **Write in Hindi** by choosing `hin`. The PDF uses a Devanagari font with proper letter shaping.
+
+## Test
+
+```bash
+../.venv/bin/pytest
+```
 
 The Devanagari font in `fonts/` is a [Noto](https://github.com/notofonts) font under the SIL Open Font License 1.1
 (see `fonts/OFL.txt`).
