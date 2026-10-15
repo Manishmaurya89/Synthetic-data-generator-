@@ -4,7 +4,7 @@
 
 Part of the [Synthetic Data Generator](../README.md). Give it a topic and it writes a full article with headings,
 paragraphs, bullet lists and tables, then renders it as a clean PDF. Because the JSON records exactly what the PDF
-contains, every pair works as ready-made test data for document parsers, layout models and RAG pipelines.
+contains, every pair works as ready-made test data for document parsers, text extraction and RAG pipelines.
 
 ## Run it
 

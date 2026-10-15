@@ -160,7 +160,7 @@ Topic + languages + model
 
 Need whole documents instead of sentences? The document generator writes a complete article with headings,
 paragraphs, bullet lists and tables, then renders it as a PDF. The JSON tells you exactly what the PDF contains,
-which makes the pair ready-made test data for document parsers, layout models and RAG pipelines.
+which makes the pair ready-made test data for document parsers, text extraction and RAG pipelines.
 
 ```bash
 cd "Synthetic Document Generation"
