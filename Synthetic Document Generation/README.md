@@ -1,10 +1,10 @@
 # Synthetic Document Generator
 
-**Generate complete structured documents as JSON and PDF with any local LLM in Ollama.**
+Generate complete structured documents as JSON and PDF with any local LLM in Ollama.
 
-Part of the [Synthetic Data Generator](../README.md). Give it a topic and it writes a full article with headings,
-paragraphs, bullet lists and tables, then renders it as a clean PDF. Because the JSON records exactly what the PDF
-contains, every pair works as ready-made test data for document parsers, text extraction and RAG pipelines.
+This is part of the [Synthetic Data Generator](../README.md). Give it a topic and it writes a full article with
+headings, paragraphs, bullet lists and tables, then renders it as a PDF. The JSON records exactly what the PDF
+contains, so each pair works as test data for document parsers, text extraction and RAG pipelines.
 
 ## Run it
 
@@ -64,9 +64,10 @@ Pass any of the settings as flags and the rest use their defaults:
 
 ## Tips
 
-- **Scale the length** with the page count. Each page asks the model for about 400 words.
-- **Pick any model.** Choose from the menu, type a new name to download it, or set `OLLAMA_MODEL` to change the default.
-- **Write in Hindi** by choosing `hin`. The PDF uses a Devanagari font with proper letter shaping.
+- The page count controls the length. Each page asks the model for about 400 words.
+- You can use any model. Choose one from the menu, type a new name to download it, or set `OLLAMA_MODEL` to change
+  the default.
+- Choose `hin` to write in Hindi. The PDF uses a Devanagari font with proper letter shaping.
 
 ## Test
 
