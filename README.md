@@ -7,6 +7,13 @@ need an API key.
 ![Python 3.13](https://img.shields.io/badge/python-3.13-3776AB?logo=python&logoColor=white)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 
+<p align="center">
+  <img src="docs/demo-output.png" width="100%"
+       alt="Terminal output of a real run: English and Hindi mixed 50/50, saved as JSON, with the first entries of outputs/dataset.json showing Hindi and English sentences tagged with their language.">
+  <br>
+  <sub>A real run: English and Hindi mixed 50/50 and saved as JSON.</sub>
+</p>
+
 I built this because I needed sentence datasets in Indian languages and kept running into free-tier limits on
 hosted APIs. With this tool you pick a model you already have, give it a topic, and get a clean, deduplicated
 dataset in any of 13 languages. It can also write whole structured documents.
