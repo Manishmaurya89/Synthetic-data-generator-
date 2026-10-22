@@ -37,7 +37,7 @@ GTTS_LANG_MAP = {
     "sin": "si"
 }
 
-# Unicode ranges for each script
+# Unicode ranges used to check that a sentence is really in the requested language
 SCRIPT_RANGES = {
     "eng": [("A", "Z"), ("a", "z"), ("\u00C0", "\u024F")],
     "hin": [("\u0900", "\u097F")],
@@ -54,7 +54,7 @@ SCRIPT_RANGES = {
     "sin": [("\u0D80", "\u0DFF")]
 }
 
-# PDF fonts
+# Noto font in fonts/ for each language; None means the built-in Helvetica
 FONT_FILES = {
     "eng": None,
     "hin": "NotoSansDevanagari.ttf",
@@ -71,7 +71,6 @@ FONT_FILES = {
     "sin": "NotoSansSinhala-Regular.ttf"
 }
 
-# Languages written right-to-left
 RTL_LANGUAGES = {"urd"}
 
 DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "llama3")

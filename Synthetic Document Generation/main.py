@@ -77,7 +77,7 @@ def main():
     print("\n--- Generating Structured Document ---\n")
     data = generate_document(topic, pages, language, model)
 
-    # save JSON (debugging)
+    # Kept next to the PDF so you can see exactly what the model returned.
     with open(os.path.join(OUTPUT_DIR, "output.json"), "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 

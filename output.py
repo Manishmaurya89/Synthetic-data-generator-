@@ -20,14 +20,12 @@ def output_path(filename):
     return os.path.join(OUTPUT_DIR, filename)
 
 
-# TXT
 def save_txt(data, filename="dataset.txt"):
     with open(output_path(filename), "w", encoding="utf-8") as f:
         for _, line in data:
             f.write(line + "\n")
 
 
-# JSON
 def save_json(data, filename="dataset.json"):
     structured = [{"text": line, "language": lang} for lang, line in data]
 
@@ -35,7 +33,6 @@ def save_json(data, filename="dataset.json"):
         json.dump(structured, f, ensure_ascii=False, indent=2)
 
 
-#  CSV
 def save_csv(data, filename="dataset.csv"):
     with open(output_path(filename), "w", encoding="utf-8", newline="") as f:
         writer = csv.writer(f)
@@ -45,12 +42,12 @@ def save_csv(data, filename="dataset.csv"):
             writer.writerow([line, lang])
 
 
-#  PDF (MULTILINGUAL TTF SUPPORT)
+# Built into every PDF reader; covers English and other Latin-1 text.
 FALLBACK_FONT = "Helvetica"
 
 
-# FONT REGISTRATION
 def get_font(language_code):
+    """Register the language's Noto font with ReportLab once and return its name."""
     filename = FONT_FILES[language_code]
 
     if filename is None:
@@ -85,6 +82,11 @@ def fits_fallback_font(word):
 
 
 def to_markup(text, font_name):
+    """Escape text for a Paragraph, switching to Helvetica for words the script font can't draw.
+
+    Some Noto fonts have no Latin letters, so English words inside a Hindi or
+    Urdu sentence would otherwise come out as empty boxes.
+    """
     if font_name == FALLBACK_FONT:
         return escape(text)
 
@@ -111,8 +113,11 @@ def text_width(text, style):
     return paragraph.getActualLineWidths0()[0]
 
 
-# RIGHT-TO-LEFT TEXT
+# ReportLab lays text out left to right only, so right-to-left lines (Urdu) are
+# wrapped here and each line's words are reordered before it is drawn.
+
 def split_scripts(word, language_code):
+    """Split a word where it switches between the RTL script and Latin letters or digits."""
     parts = [""]
     last = None
 
@@ -134,6 +139,7 @@ def split_scripts(word, language_code):
 
 
 def visual_order(words, language_code):
+    """Reverse the line for right-to-left reading, keeping runs of LTR words in their own order."""
     runs = []
 
     for word in words:
@@ -148,7 +154,8 @@ def visual_order(words, language_code):
 
 
 def rtl_lines(text, style, language_code, max_width):
-    max_width *= 0.95
+    """Wrap text to max_width using measured word widths, then put each line in visual order."""
+    max_width *= 0.95  # a little slack so ReportLab never re-wraps a line
     space = text_width("a a", style) - 2 * text_width("a", style)
 
     lines = [[]]
@@ -184,21 +191,19 @@ def paragraphs(text, style, language_code, max_width, bold=False):
     return elements
 
 
-# PDF FUNCTION
 def save_pdf(data, topic, filename="dataset.pdf"):
     doc = SimpleDocTemplate(output_path(filename))
     styles = getSampleStyleSheet()
 
     elements = []
 
-    # Title
+    # The topic may be typed in any language, so pick the title font from its script.
     title_language = detect_language(topic)
     title_style = make_style("TitleStyle", title_language, 14, styles["Normal"])
 
     elements.extend(paragraphs(topic, title_style, title_language, doc.width, bold=True))
     elements.append(Spacer(1, 15))
 
-    # Content
     line_styles = {}
 
     for lang, line in data:

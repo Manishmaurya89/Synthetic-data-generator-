@@ -36,6 +36,7 @@ def text(value):
 
 
 def flatten(items):
+    """Yield the items of a list the model may have nested, or sent as a single string."""
     if isinstance(items, str):
         items = [items]
 
@@ -47,6 +48,11 @@ def flatten(items):
 
 
 def make_table(table, cell_style, header_style, width):
+    """Build a Table from the model's {headers, rows}, or None if it has no headers.
+
+    Rows may come back as lists or as dicts keyed by header; short rows are
+    padded and long ones cut to the header count, and empty rows are skipped.
+    """
     headers = list(flatten(table.get("headers")))
 
     if not headers:
@@ -133,11 +139,9 @@ def save_pdf(data, filename="output.pdf", language_code="eng"):
 
     elements = []
 
-    # -------- TITLE --------
     elements.append(Paragraph(text(data.get("title", "")), title_style))
     elements.append(Spacer(1, 12))
 
-    # -------- SECTIONS --------
     for sec in data.get("sections", []):
         if not isinstance(sec, dict):
             continue
@@ -145,11 +149,9 @@ def save_pdf(data, filename="output.pdf", language_code="eng"):
         if sec.get("heading"):
             elements.append(Paragraph(text(sec["heading"]), heading_style))
 
-        # paragraphs
         for p in flatten(sec.get("paragraphs")):
             elements.append(Paragraph(text(p), normal_style))
 
-        # lists
         items = list(flatten(sec.get("lists")))
 
         if items:
@@ -159,7 +161,6 @@ def save_pdf(data, filename="output.pdf", language_code="eng"):
             ]
             elements.append(ListFlowable(bullet_items, bulletType="bullet"))
 
-        # tables
         for table in sec.get("tables") or []:
             if not isinstance(table, dict):
                 continue

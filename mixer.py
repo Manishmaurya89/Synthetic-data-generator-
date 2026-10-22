@@ -2,6 +2,11 @@ import random
 
 
 def allocate_counts(total_samples, mix_ratio):
+    """Turn percentages into sample counts that add up exactly to total_samples.
+
+    Rounds down first, then hands the leftover samples to the languages that
+    lost the most to rounding.
+    """
     counts = {lang: total_samples * percent // 100 for lang, percent in mix_ratio.items()}
     leftover = total_samples - sum(counts.values())
 
