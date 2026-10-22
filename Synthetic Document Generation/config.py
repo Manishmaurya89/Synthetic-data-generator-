@@ -9,7 +9,7 @@ LANG_CODE_MAP = {
     "hin": "Hindi"
 }
 
-# PDF fonts
+# Noto font in fonts/ for each language; None means ReportLab's default font
 FONT_FILES = {
     "eng": None,
     "hin": "NotoSansDevanagari.ttf"

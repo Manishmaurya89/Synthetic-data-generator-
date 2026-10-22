@@ -22,7 +22,6 @@ def generate_audio_dataset(data, folder=os.path.join(OUTPUT_DIR, "audio")):
 
         rows.append([filename, lang, text])
 
-    # Metadata file
     with open(os.path.join(folder, "metadata.csv"), "w", encoding="utf-8", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["file", "language", "text"])

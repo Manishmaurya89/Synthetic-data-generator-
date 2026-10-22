@@ -35,7 +35,7 @@ This is the best first contribution.
 
 1. **Register** the language code in every table in `config.py`: `LANG_CODE_MAP`, `GTTS_LANG_MAP`, `SCRIPT_RANGES`
    and `FONT_FILES` (plus `RTL_LANGUAGES` if it's written right-to-left).
-2. **Write** a prompt in that language in `build_prompt()` in `generator.py`. Ask a native speaker to check it if you
+2. **Write** a prompt in that language and add it to `PROMPTS` in `generator.py`. Ask a native speaker to check it if you
    can; a natural prompt gets noticeably better sentences.
 3. **Add** a font that covers the script to `fonts/`. [Noto](https://github.com/notofonts) fonts are a good choice,
    and their "full" builds include Latin letters and digits.

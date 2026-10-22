@@ -12,31 +12,27 @@ MIN_SCRIPT_SHARE = 0.7
 LIST_MARKER = re.compile(r"^(?:[-*•]|\d{1,3}[.)])\s+")
 
 
-
 def clean_output(text, language_code):
+    """Turn a model reply into a list of unique sentences in the requested language.
+
+    Drops list markers, intro lines like "Here are 60 sentences:", fragments
+    under 5 characters, and lines that are mostly in another script.
+    """
     cleaned = []
 
     for line in text.split("\n"):
-        # Remove numbering and bullets
         line = LIST_MARKER.sub("", line.strip()).strip()
 
-        # Remove unwanted intro text
         if line.lower().startswith("here are") or line.endswith(":"):
             continue
-
-        # Remove short lines
         if len(line) < 5:
             continue
-
-        # Remove sentences in other languages
         if script_share(line, language_code) < MIN_SCRIPT_SHARE or has_foreign_letters(line, language_code):
             continue
 
         cleaned.append(line)
 
-    # Remove duplicates
     return list(dict.fromkeys(cleaned))
-
 
 
 def call_llm(prompt, model):
@@ -61,11 +57,11 @@ def call_llm(prompt, model):
         return None
 
 
-
-def build_prompt(language_code, count, topic):
-
-    if language_code == "eng":
-        return f"""
+# One prompt per language, written in that language. A natural prompt gets
+# noticeably better sentences than an English one asking for another language.
+# {count} and {topic} are filled in by build_prompt.
+PROMPTS = {
+    "eng": """
 Generate {count} simple English sentences about "{topic}".
 
 Rules:
@@ -74,10 +70,8 @@ Rules:
 - No explanation
 - Do NOT include phrases like "Here are"
 - Each sentence on a new line
-"""
-
-    elif language_code == "hin":
-        return f"""
+""",
+    "hin": """
 "{topic}" विषय पर {count} सरल हिंदी वाक्य लिखें।
 
 नियम:
@@ -86,10 +80,8 @@ Rules:
 - क्रम संख्या (1,2,3) न दें
 - कोई व्याख्या न दें
 - हर वाक्य नई लाइन में हो
-"""
-
-    elif language_code == "ben":
-        return f"""
+""",
+    "ben": """
 "{topic}" বিষয়ের উপর {count}টি সহজ বাংলা বাক্য লিখুন।
 
 নিয়ম:
@@ -97,10 +89,8 @@ Rules:
 - ইংরেজি ব্যবহার করবেন না
 - নম্বরিং করবেন না
 - প্রতিটি বাক্য নতুন লাইনে লিখুন
-"""
-
-    elif language_code == "urd":
-        return f"""
+""",
+    "urd": """
 "{topic}" کے بارے میں {count} آسان اردو جملے لکھیں۔
 
 قواعد:
@@ -108,10 +98,8 @@ Rules:
 - انگریزی استعمال نہ کریں
 - نمبرنگ نہ کریں
 - ہر جملہ نئی لائن میں ہو
-"""
-
-    elif language_code == "tam":
-        return f"""
+""",
+    "tam": """
 "{topic}" பற்றிய {count} எளிய தமிழ் வாக்கியங்களை எழுதுங்கள்.
 
 விதிகள்:
@@ -119,10 +107,8 @@ Rules:
 - ஆங்கிலம் பயன்படுத்த வேண்டாம்
 - எண்கள் இட வேண்டாம்
 - ஒவ்வொரு வாக்கியமும் புதிய வரியில் இருக்க வேண்டும்
-"""
-
-    elif language_code == "tel":
-        return f"""
+""",
+    "tel": """
 "{topic}" గురించి {count} సులభమైన తెలుగు వాక్యాలు రాయండి.
 
 నియమాలు:
@@ -130,10 +116,8 @@ Rules:
 - ఆంగ్ల పదాలు ఉపయోగించకూడదు
 - సంఖ్యలు ఇవ్వకండి
 - ప్రతి వాక్యం కొత్త లైన్లో ఉండాలి
-"""
-
-    elif language_code == "mar":
-        return f"""
+""",
+    "mar": """
 "{topic}" विषयावर {count} सोपी मराठी वाक्ये लिहा.
 
 नियम:
@@ -141,10 +125,8 @@ Rules:
 - इंग्रजी शब्द वापरू नका
 - क्रमांक देऊ नका
 - प्रत्येक वाक्य नवीन ओळीत लिहा
-"""
-
-    elif language_code == "guj":
-        return f"""
+""",
+    "guj": """
 "{topic}" વિષય પર {count} સરળ ગુજરાતી વાક્યો લખો.
 
 નિયમો:
@@ -152,10 +134,8 @@ Rules:
 - અંગ્રેજી શબ્દો ન વાપરો
 - નંબરિંગ ન કરો
 - દરેક વાક્ય નવી લાઇનમાં લખો
-"""
-
-    elif language_code == "pan":
-        return f"""
+""",
+    "pan": """
 "{topic}" ਬਾਰੇ {count} ਸਧਾਰਣ ਪੰਜਾਬੀ ਵਾਕ ਲਿਖੋ।
 
 ਨਿਯਮ:
@@ -163,10 +143,8 @@ Rules:
 - ਅੰਗ੍ਰੇਜ਼ੀ ਨਾ ਵਰਤੋ
 - ਨੰਬਰ ਨਾ ਦਿਓ
 - ਹਰ ਵਾਕ ਨਵੀਂ ਲਾਈਨ ਵਿੱਚ ਹੋਵੇ
-"""
-
-    elif language_code == "mal":
-        return f"""
+""",
+    "mal": """
 "{topic}" എന്ന വിഷയത്തിൽ {count} ലളിതമായ മലയാളം വാക്യങ്ങൾ എഴുതുക.
 
 നിയമങ്ങൾ:
@@ -174,10 +152,8 @@ Rules:
 - ഇംഗ്ലീഷ് ഉപയോഗിക്കരുത്
 - നമ്പറിംഗ് ചെയ്യരുത്
 - ഓരോ വാക്യവും പുതിയ വരിയിൽ എഴുതുക
-"""
-
-    elif language_code == "kan":
-        return f"""
+""",
+    "kan": """
 "{topic}" ವಿಷಯದ ಬಗ್ಗೆ {count} ಸರಳ ಕನ್ನಡ ವಾಕ್ಯಗಳನ್ನು ಬರೆಯಿರಿ.
 
 ನಿಯಮಗಳು:
@@ -185,10 +161,8 @@ Rules:
 - ಇಂಗ್ಲಿಷ್ ಬಳಸದಿರಿ
 - ಸಂಖ್ಯೆ ಹಾಕಬೇಡಿ
 - ಪ್ರತಿಯೊಂದು ವಾಕ್ಯವೂ ಹೊಸ ಸಾಲಿನಲ್ಲಿ ಇರಲಿ
-"""
-
-    elif language_code == "nep":
-        return f"""
+""",
+    "nep": """
 "{topic}" विषयमा {count} सरल नेपाली वाक्यहरू लेख्नुहोस्।
 
 नियमहरू:
@@ -196,10 +170,8 @@ Rules:
 - अंग्रेजी प्रयोग नगर्नुहोस्
 - नम्बर नदिनुहोस्
 - प्रत्येक वाक्य नयाँ लाइनमा लेख्नुहोस्
-"""
-
-    elif language_code == "sin":
-        return f"""
+""",
+    "sin": """
 "{topic}" පිළිබඳ {count} සරල සිංහල වාක්‍ය ලියන්න.
 
 නීති:
@@ -207,10 +179,10 @@ Rules:
 - ඉංග්‍රීසි භාවිතා නොකරන්න
 - අංක යොදන්න එපා
 - සෑම වාක්‍යයක්ම නව පේළියක ලියන්න
-"""
+""",
+}
 
-    else:
-        return f"""
+FALLBACK_PROMPT = """
 Generate {count} sentences about "{topic}" in {language_code}.
 
 Rules:
@@ -219,8 +191,17 @@ Rules:
 """
 
 
+def build_prompt(language_code, count, topic):
+    template = PROMPTS.get(language_code, FALLBACK_PROMPT)
+    return template.format(count=count, topic=topic, language_code=language_code)
+
 
 def generate_sentences(language_code, total_count, topic, model):
+    """Ask for sentences in batches until there are enough unique ones.
+
+    Gives up after MAX_CALLS_PER_BATCH tries per batch, so a model that keeps
+    repeating itself returns fewer sentences rather than duplicates.
+    """
     if total_count <= 0:
         return []
 

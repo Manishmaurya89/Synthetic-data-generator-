@@ -11,15 +11,11 @@ FORMATS = ("txt", "json", "csv", "pdf", "audio")
 
 
 def run_system(language_codes, total_samples, mix_ratio, format_type, topic, model):
-    # Monolingual
     if len(language_codes) == 1:
         counts = {language_codes[0]: total_samples}
-
-    # Multilingual
     else:
         counts = allocate_counts(total_samples, mix_ratio)
 
-    # Generate data for each language
     language_data = {}
 
     for code, count in counts.items():
@@ -36,7 +32,6 @@ def run_system(language_codes, total_samples, mix_ratio, format_type, topic, mod
     if len(data) < total_samples:
         print(f"Warning: the dataset has {len(data)} of the {total_samples} samples requested")
 
-    # Save output
     if format_type == "txt":
         save_txt(data)
     elif format_type == "json":
@@ -117,6 +112,7 @@ def parse_mix(language_codes, percents):
 
 
 def even_mix(language_codes):
+    """Split 100% as evenly as possible, giving any remainder to the first languages."""
     base, extra = divmod(100, len(language_codes))
     return {code: base + (1 if i < extra else 0) for i, code in enumerate(language_codes)}
 
@@ -125,19 +121,14 @@ def get_user_input():
     print("\nSupported language codes:")
     print(", ".join(LANG_CODE_MAP.keys()))
 
-    # Languages
     language_codes = parse_languages(input("\nEnter language code(s) (e.g. eng or eng,hin): "))
 
-    # Dataset size
     total_samples = to_int(input("Enter number of samples: "), 1)
 
-    # Topic
     topic = parse_topic(input("Enter topic: "))
 
-    # Format
     format_type = parse_format(input(f"Format ({'/'.join(FORMATS)}): "))
 
-    # Mixing
     mix_ratio = {}
     if len(language_codes) > 1:
         print("\nEnter percentage for each language (must sum to 100):")
