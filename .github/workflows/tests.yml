@@ -19,9 +19,5 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
 
-      - name: Test the sentence generator
-        run: pytest
-
-      - name: Test the document generator
-        working-directory: Synthetic Document Generation
+      - name: Test
         run: pytest

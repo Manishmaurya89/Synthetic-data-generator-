@@ -36,7 +36,8 @@ provider's catalog: any model in the [Ollama library](https://ollama.com/library
 - Save to TXT, JSON, CSV, PDF or MP3 audio.
 - Run without any questions, using command-line flags, so you can script it.
 - Render PDFs in every script, with proper letter shaping and right-to-left Urdu.
-- Write full structured documents with headings, paragraphs, lists and tables, as JSON and PDF.
+- Write full structured documents with headings, paragraphs, bullet lists and tables in any of the 13 languages,
+  as JSON and PDF.
 
 ## Quick start
 
@@ -57,8 +58,8 @@ provider's catalog: any model in the [Ollama library](https://ollama.com/library
    .venv/bin/python main.py
    ```
 
-Pick a model and answer a few questions: languages, number of samples, topic and format. If you don't have a
-model yet, type a name like `llama3` at the model prompt and the tool downloads it for you.
+Pick a model, choose a sentence dataset or a document, and answer a few questions. If you don't have a model yet,
+type a name like `llama3` at the model prompt and the tool downloads it for you.
 
 ## Running it without questions
 
@@ -66,15 +67,17 @@ Pass the settings as flags to use it in scripts and pipelines:
 
 ```bash
 .venv/bin/python main.py --langs hin,eng --mix 60,40 --samples 500 --topic "water cycle" --format json --model gemma4
+.venv/bin/python main.py --format document --langs hin --topic "Renewable energy in India" --pages 3
 ```
 
 | Flag | Meaning | Default |
 | --- | --- | --- |
-| `--langs` | Language codes, comma-separated | required |
-| `--samples` | Number of sentences | required |
-| `--topic` | What the sentences are about | required |
-| `--format` | `txt`, `json`, `csv`, `pdf` or `audio` | required |
-| `--mix` | Percentage per language, in `--langs` order | even split |
+| `--langs` | Language codes, comma-separated (one code for a document) | required |
+| `--topic` | What the sentences or document are about | required |
+| `--format` | `txt`, `json`, `csv`, `pdf`, `audio`, or `document` for a structured article | required |
+| `--samples` | Number of sentences (sentence datasets only) | required |
+| `--mix` | Percentage per language, in `--langs` order (sentence datasets only) | even split |
+| `--pages` | Document length, about 400 words a page, up to 10 (documents only) | `2` |
 | `--model` | Ollama model to use | `llama3` |
 
 Run `python main.py --help` for the full list.
@@ -132,6 +135,7 @@ Every file is saved in `outputs/`.
 | `csv` | `dataset.csv` | `text` and `language` columns |
 | `pdf` | `dataset.pdf` | The topic as a title, then every sentence in its script's own font |
 | `audio` | `audio/*.mp3` + `audio/metadata.csv` | One clip per sentence in that language's voice, plus a CSV linking each clip to its text |
+| `document` | `document.json` + `document.pdf` | A full article: title, sections with headings, paragraphs, bullet lists and tables |
 
 ## Example output
 
@@ -157,18 +161,23 @@ rejected. Mixed datasets always add up to exactly the number of samples you aske
 
 ## Generating structured documents
 
-If you need whole documents instead of sentences, the document generator writes a complete article with
-headings, paragraphs, bullet lists and tables, then renders it as a PDF. The JSON records exactly what's in the
-PDF, so each pair works as test data for document parsers, text extraction and RAG pipelines.
+If you need whole documents instead of sentences, choose "Document" at the first question, or pass
+`--format document`. You get a complete article on your topic in any of the 13 languages: a title, an introduction,
+sections that each cover a different aspect, and a conclusion, written as real paragraphs, with bullet lists and
+tables where they fit. Every outline plans at least one of each. The JSON records exactly what's in the PDF, so each
+pair works as test data for document parsers, text extraction and RAG pipelines.
 
-```bash
-cd "Synthetic Document Generation"
-../.venv/bin/python main.py
-../.venv/bin/python main.py --topic "Renewable energy in India" --pages 3 --language hin
+```
+Topic + language + pages
+  -> Plan    the model outlines the sections and picks which ones need a list or a table
+  -> Write   each section on its own, with the whole outline in view so sections don't repeat each other
+  -> Check   enough paragraphs of at least 3 sentences, the right script, no romanised words, a full list or table
+  -> Retry   any section that fails a check, up to 3 times
+  -> Export  document.json and document.pdf
 ```
 
-It writes `outputs/output.json` and `outputs/final_output.pdf`. There's more in its
-[README](Synthetic%20Document%20Generation/README.md).
+Each page asks for about 400 words, split over more sections as the document grows: 4 sections for one page, up to
+10 for long documents. The model writes the facts, so treat them as synthetic: they read well but aren't checked.
 
 ## Project layout
 
@@ -176,15 +185,15 @@ It writes `outputs/output.json` and `outputs/final_output.pdf`. There's more in 
 main.py            the entry point: asks for your settings (or reads flags) and runs everything
 models.py          lists, picks and downloads Ollama models
 generator.py       prompts the LLM, then cleans and checks every sentence
+document.py        plans, writes and checks structured documents
 mixer.py           splits samples between languages and shuffles them
-output.py          writes TXT, JSON, CSV and PDF files
+output.py          writes TXT, JSON, CSV and PDF files, including document PDFs
 media.py           writes MP3 clips and their metadata
 scripts.py         detects which script a piece of text is written in
 config.py          languages, fonts, default model and paths
 fonts/             Noto fonts for every supported script
 tests/             test suite (runs without Ollama)
 examples/          real generated datasets
-Synthetic Document Generation/   generates structured documents as JSON and PDF
 ```
 
 ## What's next
