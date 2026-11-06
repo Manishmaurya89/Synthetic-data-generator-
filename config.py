@@ -37,6 +37,23 @@ GTTS_LANG_MAP = {
     "sin": "si"
 }
 
+# Script each language is written in, named in document prompts
+SCRIPT_NAMES = {
+    "eng": "Latin",
+    "hin": "Devanagari",
+    "ben": "Bengali",
+    "urd": "Perso-Arabic (Nastaliq)",
+    "tam": "Tamil",
+    "tel": "Telugu",
+    "mar": "Devanagari",
+    "guj": "Gujarati",
+    "pan": "Gurmukhi",
+    "mal": "Malayalam",
+    "kan": "Kannada",
+    "nep": "Devanagari",
+    "sin": "Sinhala"
+}
+
 # Unicode ranges used to check that a sentence is really in the requested language
 SCRIPT_RANGES = {
     "eng": [("A", "Z"), ("a", "z"), ("\u00C0", "\u024F")],

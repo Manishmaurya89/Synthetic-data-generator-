@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Documents
+
+- Generate structured documents from the main tool: choose "Document" at the first question, or pass
+  `--format document` with `--pages`
+- Write documents in all 13 languages, with right-to-left Urdu in the PDF
+- Plan an outline first, then write each section on its own, so length follows the page count and sections don't
+  repeat each other
+- Plan at least one bullet list and one table in every document, and retry any section that comes back too short,
+  incomplete or in the wrong script
+- Clean up stray Chinese punctuation and markdown that models slip into the text
+- Replace the separate `Synthetic Document Generation/` folder, which only supported English and Hindi
+
 ## v1.0.0
 
 The first release of Synthetic Data Generator: free synthetic data from any local LLM.

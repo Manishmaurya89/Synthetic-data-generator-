@@ -35,18 +35,20 @@ def clean_output(text, language_code):
     return list(dict.fromkeys(cleaned))
 
 
-def call_llm(prompt, model):
+def call_llm(prompt, model, schema=None, temperature=0.9, max_tokens=None):
+    options = {"temperature": temperature}
+
+    if max_tokens:
+        options["num_predict"] = max_tokens
+
+    payload = {"model": model, "prompt": prompt, "stream": False, "options": options}
+
+    # Ollama constrains the reply to this JSON schema
+    if schema:
+        payload["format"] = schema
+
     try:
-        response = requests.post(
-            OLLAMA_URL,
-            json={
-                "model": model,
-                "prompt": prompt,
-                "stream": False,
-                "options": {"temperature": 0.9}
-            },
-            timeout=(10, 600)
-        )
+        response = requests.post(OLLAMA_URL, json=payload, timeout=(10, 600))
 
         response.raise_for_status()
 

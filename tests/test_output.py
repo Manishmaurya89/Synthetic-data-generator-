@@ -33,3 +33,40 @@ def test_rtl_words_are_reversed_but_english_runs_keep_their_order():
 
 def test_glued_english_is_split_from_urdu():
     assert output.split_scripts("قاعدهMotion", "urd") == ["قاعده", "Motion"]
+
+
+DOCUMENT = {
+    "title": "Motion & <Force>",
+    "sections": [
+        {
+            "heading": "Newton's laws",
+            "paragraphs": ["Force changes motion & speed <b>fast. " * 12, "Mass resists change. " * 10],
+            "list": ["Inertia", "Acceleration", "Action and reaction"],
+            "table": {"headers": ["Law", "Idea", "Year"],
+                      "rows": [["First", "Inertia " * 20, 1687], ["Second"], ["Third", "Reaction", "1687", "extra"]]},
+        },
+        {"heading": "Empty parts", "paragraphs": [], "list": [], "table": None},
+        "not a section",
+    ],
+}
+
+
+def test_document_pdf(output_dir):
+    output.save_document_pdf(DOCUMENT, "eng")
+    assert (output_dir / "document.pdf").stat().st_size > 1000
+
+
+def test_document_pdf_in_every_language(output_dir):
+    for code, sentence in SAMPLES:
+        doc = {
+            "title": sentence,
+            "sections": [{"heading": sentence, "paragraphs": [sentence * 6], "list": [sentence, "1687"],
+                          "table": {"headers": [sentence, "1687"], "rows": [[sentence * 3, "Newton"]]}}],
+        }
+        output.save_document_pdf(doc, code, f"document-{code}.pdf")
+        assert (output_dir / f"document-{code}.pdf").stat().st_size > 1000
+
+
+def test_document_json_keeps_the_script(output_dir):
+    output.save_document_json({"title": "जल चक्र", "sections": []})
+    assert '"जल चक्र"' in (output_dir / "document.json").read_text(encoding="utf-8")

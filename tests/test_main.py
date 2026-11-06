@@ -84,3 +84,60 @@ def test_every_format_is_written(output_dir, fake_generator):
     assert table[0] == ["text", "language"] and len(table) == 11
 
     assert (output_dir / "dataset.pdf").stat().st_size > 1000
+
+
+def test_document_settings():
+    args = SimpleNamespace(langs=" HIN ", topic=" water cycle ", pages=None)
+    assert main.document_settings_from_args(args) == ("hin", "water cycle", 2)
+
+    args.pages = "3"
+    assert main.document_settings_from_args(args)[2] == 3
+
+    for langs, pages in (("hin,eng", "2"), ("hin", "0"), ("hin", "11")):
+        with pytest.raises(ValueError):
+            main.document_settings_from_args(SimpleNamespace(langs=langs, topic="x", pages=pages))
+
+
+@pytest.mark.parametrize("argv", [
+    ["--format", "document", "--langs", "hin", "--topic", "x"],
+    ["--format", "document", "--langs", "hin", "--topic", "x", "--pages", "3"],
+    ["--langs", "hin", "--samples", "5", "--topic", "x", "--format", "txt"],
+    [],
+])
+def test_valid_flag_combinations(monkeypatch, argv):
+    monkeypatch.setattr("sys.argv", ["main.py"] + argv)
+    main.parse_args()
+
+
+@pytest.mark.parametrize("argv", [
+    ["--format", "document", "--topic", "x"],
+    ["--format", "document", "--langs", "hin", "--topic", "x", "--samples", "5"],
+    ["--langs", "hin", "--samples", "5", "--topic", "x", "--format", "txt", "--pages", "2"],
+    ["--langs", "hin", "--topic", "x", "--format", "txt"],
+])
+def test_invalid_flag_combinations(monkeypatch, argv):
+    monkeypatch.setattr("sys.argv", ["main.py"] + argv)
+
+    with pytest.raises(SystemExit):
+        main.parse_args()
+
+
+def test_document_is_only_a_format_on_the_command_line():
+    assert main.parse_format("Document", main.FORMATS + (main.DOCUMENT,)) == "document"
+
+    with pytest.raises(ValueError):
+        main.parse_format("document")
+
+
+def test_run_document_writes_json_and_pdf(output_dir, monkeypatch):
+    doc = {
+        "title": "जल चक्र", "topic": "जल चक्र", "language": "hin",
+        "sections": [{"heading": "परिचय", "paragraphs": ["पानी भाप बनकर ऊपर उठता है। " * 8],
+                      "list": ["वाष्पीकरण", "संघनन"], "table": {"headers": ["चरण", "स्थान"], "rows": [["वर्षा", "ज़मीन"]]}}],
+    }
+    monkeypatch.setattr(main, "generate_document", lambda topic, pages, code, model: doc)
+
+    main.run_document("hin", "जल चक्र", 1, "m")
+
+    assert json.loads((output_dir / "document.json").read_text(encoding="utf-8")) == doc
+    assert (output_dir / "document.pdf").stat().st_size > 1000

@@ -5,8 +5,9 @@ import re
 import unicodedata
 from xml.sax.saxutils import escape
 
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.enums import TA_RIGHT
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_JUSTIFY, TA_LEFT, TA_RIGHT
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
@@ -214,3 +215,131 @@ def save_pdf(data, topic, filename="dataset.pdf"):
         elements.append(Spacer(1, 8))
 
     doc.build(elements)
+
+
+ACCENT = colors.HexColor("#1f3b63")
+STRIPE = colors.HexColor("#f2f5f9")
+GRID = colors.HexColor("#c5cdd8")
+CELL_PADDING = 5
+BULLET_WIDTH = 14
+LIST_INDENT = 12
+
+
+def save_document_json(document, filename="document.json"):
+    with open(output_path(filename), "w", encoding="utf-8") as f:
+        json.dump(document, f, ensure_ascii=False, indent=2)
+
+
+def document_styles(language_code):
+    base = getSampleStyleSheet()
+    rtl = language_code in RTL_LANGUAGES
+
+    title = make_style("DocTitle", language_code, 22, base["Title"])
+    title.textColor = ACCENT
+    title.spaceAfter = 18
+
+    heading = make_style("DocHeading", language_code, 15, base["Heading2"])
+    heading.textColor = ACCENT
+    heading.spaceBefore = 14
+    heading.spaceAfter = 6
+    heading.keepWithNext = 1
+
+    body = make_style("DocBody", language_code, 11, base["Normal"])
+    body.alignment = TA_RIGHT if rtl else TA_JUSTIFY
+
+    cell = make_style("DocCell", language_code, 10, base["Normal"])
+
+    header = make_style("DocHeader", language_code, 10, base["Normal"])
+    header.textColor = colors.white
+
+    return {"title": title, "heading": heading, "body": body, "cell": cell, "header": header}
+
+
+def bullet_list(items, style, language_code, width):
+    rtl = language_code in RTL_LANGUAGES
+    text_width = width - LIST_INDENT - BULLET_WIDTH
+    bullet_style = ParagraphStyle("Bullet", parent=style, fontName=FALLBACK_FONT, alignment=TA_RIGHT if rtl else TA_LEFT)
+    rows = []
+
+    for item in items:
+        text = paragraphs(item, style, language_code, text_width)
+        bullet = Paragraph("•", bullet_style)
+        rows.append([text, bullet] if rtl else [bullet, text])
+
+    t = Table(rows, colWidths=[text_width, BULLET_WIDTH] if rtl else [BULLET_WIDTH, text_width])
+    t.hAlign = "LEFT" if rtl else "RIGHT"  # leaves the indent on the side the text starts from
+    t.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 1),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+
+    return t
+
+
+def data_table(table, styles, language_code, width):
+    headers = [str(h) for h in table["headers"]]
+    columns = len(headers)
+    column_width = width / columns
+    text_width = column_width - 2 * CELL_PADDING
+
+    def cells(row, style, bold=False):
+        row = ([str(cell) for cell in row] + [""] * columns)[:columns]
+        out = [paragraphs(cell, style, language_code, text_width, bold) if cell.strip() else "" for cell in row]
+
+        # Right-to-left tables start from the right
+        return out[::-1] if language_code in RTL_LANGUAGES else out
+
+    rows = [row for row in table.get("rows") or [] if isinstance(row, list)]
+    data = [cells(headers, styles["header"], bold=True)] + [cells(row, styles["cell"]) for row in rows]
+
+    t = Table(data, colWidths=[column_width] * columns, repeatRows=1)
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), ACCENT),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, STRIPE]),
+        ("GRID", (0, 0), (-1, -1), 0.5, GRID),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("PADDING", (0, 0), (-1, -1), CELL_PADDING),
+    ]))
+
+    return t
+
+
+def save_document_pdf(document, language_code, filename="document.pdf"):
+    path = output_path(filename)
+    title = str(document.get("title") or "")
+
+    doc = SimpleDocTemplate(path, leftMargin=56, rightMargin=56, topMargin=56, bottomMargin=56, title=title)
+    styles = document_styles(language_code)
+    width = doc.width
+
+    elements = paragraphs(title, styles["title"], language_code, width, bold=True)
+
+    for section in document.get("sections") or []:
+        if not isinstance(section, dict):
+            continue
+
+        if section.get("heading"):
+            elements.extend(paragraphs(str(section["heading"]), styles["heading"], language_code, width, bold=True))
+
+        for text in section.get("paragraphs") or []:
+            elements.extend(paragraphs(str(text), styles["body"], language_code, width))
+            elements.append(Spacer(1, 8))
+
+        items = [str(item) for item in section.get("list") or [] if str(item).strip()]
+
+        if items:
+            elements.append(bullet_list(items, styles["body"], language_code, width))
+            elements.append(Spacer(1, 8))
+
+        table = section.get("table")
+
+        if isinstance(table, dict) and table.get("headers"):
+            elements.append(Spacer(1, 4))
+            elements.append(data_table(table, styles, language_code, width))
+            elements.append(Spacer(1, 12))
+
+    doc.build(elements)
+    return path
