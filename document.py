@@ -71,7 +71,29 @@ def clean_text(text, language_code):
         text = text.replace(wide, narrow)
 
     text = MARKDOWN.sub("", text.strip())
+
+    if language_code != "eng":
+        text = drop_english_glosses(text, language_code)
+
     return " ".join(text.split())
+
+
+BRACKETED = re.compile(r"\s*\(([^()]*)\)")
+
+
+def drop_english_glosses(text, language_code):
+    # Models add the English after a translated term ("ईमेल (Email)", "विंट सर्फ़ (Vint Cerf)"); the term is
+    # already there in the right script, so the bracket is dropped. English that stands on its own stays.
+    def gloss(match):
+        letters = [c for c in match.group(1) if c.isalpha()]
+        before = text[:match.start()].rstrip().rstrip("'\"‘’“”")  # the term is often quoted: 'इंटरनेटवर्किंग' (Inter-networking)
+
+        if letters and all(in_script(c, "eng") for c in letters) and before and in_script(before[-1], language_code):
+            return ""
+
+        return match.group(0)
+
+    return BRACKETED.sub(gloss, text)
 
 
 def clean_label(text, language_code):
@@ -117,7 +139,12 @@ def parse_json(raw):
 
 def language_rule(language_code):
     language = LANG_CODE_MAP[language_code]
-    return f"Write every word in {language}, in {SCRIPT_NAMES[language_code]} script, apart from names, acronyms and numbers."
+    rule = f"Write every word in {language}, in {SCRIPT_NAMES[language_code]} script, apart from names, acronyms and numbers."
+
+    if language_code != "eng":
+        rule += " Don't add English translations in brackets."
+
+    return rule
 
 
 def as_mix(language):
@@ -541,7 +568,9 @@ def generate_document(topic, pages, language, model):
 
     for index, plan in enumerate(outline["sections"]):
         print(f"  Writing section {index + 1} of {count}: {plan['heading']}")
-        section = write_section(outline, index, words - ELEMENT_WORDS[plan["element"]], plan["language"], model)
+        # A table or list takes page space, but never more than a third of a short section's words
+        budget = words - min(ELEMENT_WORDS[plan["element"]], words // 3)
+        section = write_section(outline, index, budget, plan["language"], model)
         sections.append({**section, "language": plan["language"]})
 
     document = {"title": outline["title"], "topic": topic, "language": ",".join(mix), "sections": sections}

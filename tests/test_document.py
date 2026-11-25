@@ -394,3 +394,23 @@ def test_single_language_documents_are_unchanged(fake_llm):
 
     assert doc["language"] == "eng" and "mix" not in doc
     assert {s["language"] for s in doc["sections"]} == {"eng"}
+
+
+def test_drops_english_glosses_after_translated_terms():
+    assert clean_text("ईमेल (Email) और विंट सर्फ़ (Vint Cerf) ने टीसीपी (TCP/IP) बनाया।", "hin") == "ईमेल और विंट सर्फ़ ने टीसीपी बनाया।"
+    assert clean_text("انٹرنیٹ (Internet) بہت اہم ہے۔", "urd") == "انٹرنیٹ بہت اہم ہے۔"
+    assert clean_text("'इंटरनेटवर्किंग' (Inter-networking) की अवधारणा", "hin") == "'इंटरनेटवर्किंग' की अवधारणा"
+
+    # English that stands on its own, brackets in the document's script, and numbers all stay
+    assert clean_text("ARPANET का दायरा (1969) बढ़ा, यानी (लगभग) दोगुना।", "hin") == "ARPANET का दायरा (1969) बढ़ा, यानी (लगभग) दोगुना।"
+    assert clean_text("ARPANET (Advanced Research) का हिस्सा", "hin") == "ARPANET (Advanced Research) का हिस्सा"
+    assert clean_text("Packet switching (PS) was new.", "eng") == "Packet switching (PS) was new."
+
+
+def test_short_sections_keep_two_thirds_of_their_words_beside_a_table(fake_llm):
+    calls = fake_llm(outline(6, ["none", "table", "list", "none", "none", "none"]))
+    generate_document("water cycle", 3, "eng", "m")
+
+    budget = {prompt.split('Write section ')[1].split(',')[0]: prompt.split("about ")[1].split(" words")[0]
+              for prompt in calls[1:]}
+    assert budget["1"] == "200" and budget["2"] == "134" and budget["3"] == "160"

@@ -24,6 +24,7 @@
 - Ask for fewer words in sections with a table or list, so documents land on the page count they were asked for
 - Keep a table's header together with its first two rows instead of leaving them alone at the bottom of a page
 - Keep the introduction and conclusion as plain text
+- Drop English translations in brackets that models add after a translated term, such as "ईमेल (Email)"
 - Clean up stray Chinese punctuation and markdown that models slip into the text
 - Replace the separate `Synthetic Document Generation/` folder, which only supported English and Hindi
 
