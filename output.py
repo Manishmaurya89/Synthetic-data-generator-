@@ -5,7 +5,7 @@ import re
 import unicodedata
 from xml.sax.saxutils import escape
 
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import CondPageBreak, SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_JUSTIFY, TA_LEFT, TA_RIGHT
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -224,6 +224,9 @@ CELL_PADDING = 5
 BULLET_WIDTH = 14
 LIST_INDENT = 12
 
+# A heading plus about four lines; with less room left it moves to the next page
+HEADING_ROOM = 100
+
 
 def save_document_json(document, filename="document.json"):
     with open(output_path(filename), "w", encoding="utf-8") as f:
@@ -242,7 +245,6 @@ def document_styles(language_code):
     heading.textColor = ACCENT
     heading.spaceBefore = 14
     heading.spaceAfter = 6
-    heading.keepWithNext = 1
 
     body = make_style("DocBody", language_code, 11, base["Normal"])
     body.alignment = TA_RIGHT if rtl else TA_JUSTIFY
@@ -307,38 +309,51 @@ def data_table(table, styles, language_code, width):
     return t
 
 
+def table_start_height(table, width, rows=3):
+    # Header plus two rows, so a table doesn't start with a lone row at the bottom of a page
+    table.wrap(width, 10 ** 6)
+    return sum(table._rowHeights[:rows]) + 4
+
+
 def save_document_pdf(document, language_code, filename="document.pdf"):
     path = output_path(filename)
     title = str(document.get("title") or "")
 
     doc = SimpleDocTemplate(path, leftMargin=56, rightMargin=56, topMargin=56, bottomMargin=56, title=title)
-    styles = document_styles(language_code)
+    styles_by_language = {language_code: document_styles(language_code)}
     width = doc.width
 
-    elements = paragraphs(title, styles["title"], language_code, width, bold=True)
+    elements = paragraphs(title, styles_by_language[language_code]["title"], language_code, width, bold=True)
 
     for section in document.get("sections") or []:
         if not isinstance(section, dict):
             continue
 
+        # Sections can be in different languages
+        code = section.get("language") if section.get("language") in FONT_FILES else language_code
+        styles = styles_by_language.setdefault(code, document_styles(code))
+
         if section.get("heading"):
-            elements.extend(paragraphs(str(section["heading"]), styles["heading"], language_code, width, bold=True))
+            elements.append(CondPageBreak(HEADING_ROOM))
+            elements.extend(paragraphs(str(section["heading"]), styles["heading"], code, width, bold=True))
 
         for text in section.get("paragraphs") or []:
-            elements.extend(paragraphs(str(text), styles["body"], language_code, width))
+            elements.extend(paragraphs(str(text), styles["body"], code, width))
             elements.append(Spacer(1, 8))
 
         items = [str(item) for item in section.get("list") or [] if str(item).strip()]
 
         if items:
-            elements.append(bullet_list(items, styles["body"], language_code, width))
+            elements.append(bullet_list(items, styles["body"], code, width))
             elements.append(Spacer(1, 8))
 
         table = section.get("table")
 
         if isinstance(table, dict) and table.get("headers"):
+            data = data_table(table, styles, code, width)
+            elements.append(CondPageBreak(table_start_height(data, width)))
             elements.append(Spacer(1, 4))
-            elements.append(data_table(table, styles, language_code, width))
+            elements.append(data)
             elements.append(Spacer(1, 12))
 
     doc.build(elements)

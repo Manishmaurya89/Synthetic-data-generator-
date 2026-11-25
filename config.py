@@ -20,23 +20,6 @@ LANG_CODE_MAP = {
     "sin": "Sinhala"
 }
 
-# gTTS voice for each language
-GTTS_LANG_MAP = {
-    "eng": "en",
-    "hin": "hi",
-    "ben": "bn",
-    "urd": "ur",
-    "tam": "ta",
-    "tel": "te",
-    "mar": "mr",
-    "guj": "gu",
-    "pan": "pa",
-    "mal": "ml",
-    "kan": "kn",
-    "nep": "ne",
-    "sin": "si"
-}
-
 # Script each language is written in, named in document prompts
 SCRIPT_NAMES = {
     "eng": "Latin",

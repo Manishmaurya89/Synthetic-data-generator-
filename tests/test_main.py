@@ -87,20 +87,27 @@ def test_every_format_is_written(output_dir, fake_generator):
 
 
 def test_document_settings():
-    args = SimpleNamespace(langs=" HIN ", topic=" water cycle ", pages=None)
-    assert main.document_settings_from_args(args) == ("hin", "water cycle", 2)
+    args = SimpleNamespace(langs=" HIN ", topic=" water cycle ", pages=None, mix=None)
+    assert main.document_settings_from_args(args) == ({"hin": 100}, "water cycle", 2)
 
     args.pages = "3"
     assert main.document_settings_from_args(args)[2] == 3
 
-    for langs, pages in (("hin,eng", "2"), ("hin", "0"), ("hin", "11")):
+    args = SimpleNamespace(langs="hin,eng", topic="x", pages="2", mix=None)
+    assert main.document_settings_from_args(args)[0] == {"hin": 50, "eng": 50}
+
+    args.mix = "70,30"
+    assert main.document_settings_from_args(args)[0] == {"hin": 70, "eng": 30}
+
+    for langs, pages, mix in (("hin,eng", "2", "60,30"), ("hin,eng", "2", "100"), ("hin", "0", None), ("hin", "51", None)):
         with pytest.raises(ValueError):
-            main.document_settings_from_args(SimpleNamespace(langs=langs, topic="x", pages=pages))
+            main.document_settings_from_args(SimpleNamespace(langs=langs, topic="x", pages=pages, mix=mix))
 
 
 @pytest.mark.parametrize("argv", [
     ["--format", "document", "--langs", "hin", "--topic", "x"],
     ["--format", "document", "--langs", "hin", "--topic", "x", "--pages", "3"],
+    ["--format", "document", "--langs", "hin,eng", "--mix", "50,50", "--topic", "x", "--pages", "3"],
     ["--langs", "hin", "--samples", "5", "--topic", "x", "--format", "txt"],
     [],
 ])
@@ -135,9 +142,9 @@ def test_run_document_writes_json_and_pdf(output_dir, monkeypatch):
         "sections": [{"heading": "परिचय", "paragraphs": ["पानी भाप बनकर ऊपर उठता है। " * 8],
                       "list": ["वाष्पीकरण", "संघनन"], "table": {"headers": ["चरण", "स्थान"], "rows": [["वर्षा", "ज़मीन"]]}}],
     }
-    monkeypatch.setattr(main, "generate_document", lambda topic, pages, code, model: doc)
+    monkeypatch.setattr(main, "generate_document", lambda topic, pages, mix, model: doc)
 
-    main.run_document("hin", "जल चक्र", 1, "m")
+    main.run_document({"hin": 100}, "जल चक्र", 1, "m")
 
     assert json.loads((output_dir / "document.json").read_text(encoding="utf-8")) == doc
     assert (output_dir / "document.pdf").stat().st_size > 1000

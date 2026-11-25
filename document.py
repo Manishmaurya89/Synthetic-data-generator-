@@ -4,15 +4,22 @@ import unicodedata
 
 from config import LANG_CODE_MAP, SCRIPT_NAMES
 from generator import LIST_MARKER, MIN_SCRIPT_SHARE, call_llm
+from mixer import allocate_counts
 from scripts import has_foreign_letters, in_script, script_share
 
 
 WORDS_PER_PAGE = 400
-MAX_PAGES = 10
-MAX_SECTIONS = 10
+# Roughly how many words of text a table or list displaces on the page
+ELEMENT_WORDS = {"table": 120, "list": 40, "none": 0}
+MAX_PAGES = 50
+# Longer documents get one section a page
+SHORT_DOCUMENT_SECTIONS = 10
+# Ollama's default context is too small for long outlines, and it cuts overflowing prompts silently
+LONG_CONTEXT = 8192
 MIN_PARAGRAPH_SENTENCES = 3
 ATTEMPTS = 3
 TEMPERATURE = 0.7
+SHORT_TEXT_SCRIPT_SHARE = 0.5
 
 # Sentences are counted, not words: one Malayalam word can carry what takes four in Hindi
 SENTENCE_END = re.compile(r"[.!?।۔؟]+(?:\s|$)")
@@ -26,9 +33,31 @@ WIDE_PUNCTUATION = {"，": ",", "：": ":", "；": ";", "！": "!", "？": "?", 
 
 MARKDOWN = re.compile(r"\*\*|__|`|^#+\s*")
 
+ROMAN_NUMERALS = [(50, "L"), (40, "XL"), (10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I")]
+
 
 def section_count(pages):
-    return min(MAX_SECTIONS, pages + 3)
+    return max(min(SHORT_DOCUMENT_SECTIONS, pages + 3), pages)
+
+
+def is_long(count):
+    return count > SHORT_DOCUMENT_SECTIONS
+
+
+def context_for(count):
+    # Keep this fixed per document: Ollama reloads the model whenever num_ctx changes
+    return LONG_CONTEXT if is_long(count) else None
+
+
+def to_roman(number):
+    numeral = ""
+
+    for value, letters in ROMAN_NUMERALS:
+        while number >= value:
+            numeral += letters
+            number -= value
+
+    return numeral
 
 
 def paragraph_count(words):
@@ -42,12 +71,38 @@ def clean_text(text, language_code):
         text = text.replace(wide, narrow)
 
     text = MARKDOWN.sub("", text.strip())
+
+    if language_code != "eng":
+        text = drop_english_glosses(text, language_code)
+
     return " ".join(text.split())
+
+
+BRACKETED = re.compile(r"\s*\(([^()]*)\)")
+
+
+def drop_english_glosses(text, language_code):
+    # "ईमेल (Email)" -> "ईमेल". The term is already translated, so the English in brackets is redundant
+    def gloss(match):
+        letters = [c for c in match.group(1) if c.isalpha()]
+        before = text[:match.start()].rstrip().rstrip("'\"‘’“”")
+
+        if letters and all(in_script(c, "eng") for c in letters) and before and in_script(before[-1], language_code):
+            return ""
+
+        return match.group(0)
+
+    return BRACKETED.sub(gloss, text)
 
 
 def clean_label(text, language_code):
     # Headings and list items: also drop numbering and bullets the model added
     return LIST_MARKER.sub("", clean_text(text, language_code)).strip()
+
+
+def drop_section_number(heading, position):
+    # Only strip the numeral for this position, so "C. elegans" survives as section 3
+    return re.sub(rf"^{to_roman(position)}\s*[.):]\s+", "", heading, flags=re.IGNORECASE).strip()
 
 
 def in_language(text, language_code):
@@ -82,7 +137,46 @@ def parse_json(raw):
 
 def language_rule(language_code):
     language = LANG_CODE_MAP[language_code]
-    return f"Write every word in {language}, in {SCRIPT_NAMES[language_code]} script, apart from names, acronyms and numbers."
+    rule = f"Write every word in {language}, in {SCRIPT_NAMES[language_code]} script, apart from names, acronyms and numbers."
+
+    if language_code != "eng":
+        rule += " Don't add English translations in brackets."
+
+    return rule
+
+
+def as_mix(language):
+    return {language: 100} if isinstance(language, str) else dict(language)
+
+
+def section_languages(count, mix):
+    # Spread each language's sections evenly instead of grouping them
+    counts = allocate_counts(count, mix)
+    order = list(mix)
+    used = dict.fromkeys(order, 0)
+    languages = []
+
+    for i in range(count):
+        open_codes = [code for code in order if used[code] < counts[code]]
+        code = max(open_codes, key=lambda c: (counts[c] * (i + 1) / count - used[c], -order.index(c)))
+        used[code] += 1
+        languages.append(code)
+
+    return languages
+
+
+def outline_language_rule(languages):
+    if len(set(languages)) == 1:
+        return f"{language_rule(languages[0])} This applies to the title, headings and summaries."
+
+    per_section = "\n".join(
+        f"{i}. {LANG_CODE_MAP[code]} ({SCRIPT_NAMES[code]} script)" for i, code in enumerate(languages, 1)
+    )
+
+    return f"""The article switches language between sections. Write the title in {LANG_CODE_MAP[languages[0]]}, and
+write each section's heading and summary entirely in the language listed for it, apart from names, acronyms and
+numbers:
+{per_section}"""
 
 
 def outline_schema(count):
@@ -109,43 +203,73 @@ def outline_schema(count):
     }
 
 
-def outline_prompt(topic, pages, count, language_code):
+def elements_wanted(count):
+    return max(1, round(max(1, count - 2) / 3))
+
+
+def outline_prompt(topic, pages, count, languages):
+    wanted = elements_wanted(count)
+    summary_length = " (under 15 words)" if is_long(count) else ""
+
     return f"""
 Plan a {pages}-page article about "{topic}" for an educated general reader.
 
 Plan exactly {count} sections:
 - The first section introduces the topic and the last section is the conclusion.
 - Every section in between covers a different aspect of the topic, with no overlap.
-- For each section give a short heading, a one-sentence summary of what it covers, and an "element":
+- For each section give a short heading, a one-sentence summary of what it covers{summary_length}, and an "element":
   "table" if the section has facts that fit rows and columns (comparisons, figures, timelines, types),
   "list" if it has steps, examples, causes, effects or tips, otherwise "none".
-- Use at least one "table" and at least one "list" in the sections between the introduction and the conclusion.
+- In the sections between the introduction and the conclusion, use "table" for exactly {wanted} and "list" for
+  exactly {wanted}, spread through the article rather than side by side. Every other section is "none".
+- Don't number the headings.
 
-{language_rule(language_code)} This applies to the title, headings and summaries.
+{outline_language_rule(languages)}
 Return only JSON.
 """
 
 
 def ensure_variety(plans):
-    # Every document gets at least one table and one list
-    middle = plans[1:-1] or plans
+    # Models tend to give either one table or one in every section, so even it out
+    middle = range(1, len(plans) - 1) if len(plans) > 2 else range(len(plans))
+    wanted = elements_wanted(len(plans))
+
+    def placed(element):
+        return [i for i, plan in enumerate(plans) if plan["element"] == element]
+
+    def gap(index, element):
+        return min((abs(index - i) for i in placed(element) if i != index), default=len(plans))
 
     for element in ("table", "list"):
-        if any(plan["element"] == element for plan in plans):
-            continue
+        # Intro and conclusion stay plain; trim the rest to evenly spaced picks
+        inside = [i for i in placed(element) if i in middle]
 
-        spare = [plan for plan in middle if plan["element"] == "none"] or [
-            plan for plan in middle
-            if sum(other["element"] == plan["element"] for other in plans) > 1
-        ]
+        if len(inside) > wanted:
+            keep = {inside[int((k + 0.5) * len(inside) / wanted)] for k in range(wanted)}
+        else:
+            keep = set(inside)
 
-        if spare:
-            spare[len(spare) // 2]["element"] = element
+        for i in placed(element):
+            if i not in keep:
+                plans[i]["element"] = "none"
+
+    for element in ("table", "list"):
+        while len(placed(element)) < wanted:
+            spare = [i for i in middle if plans[i]["element"] == "none"]
+
+            if not spare:
+                break
+
+            # Pick the spot furthest from the others
+            best = max(gap(i, element) for i in spare)
+            spare = [i for i in spare if gap(i, element) == best]
+            plans[spare[len(spare) // 2]]["element"] = element
 
     return plans
 
 
-def parse_outline(raw, count, language_code):
+def parse_outline(raw, count, languages):
+    languages = [languages] * count if isinstance(languages, str) else languages
     data = parse_json(raw)
 
     if not data or not isinstance(data.get("sections"), list):
@@ -157,38 +281,43 @@ def parse_outline(raw, count, language_code):
         if not isinstance(section, dict):
             continue
 
-        heading = clean_label(section.get("heading", ""), language_code)
-        summary = clean_text(section.get("summary", ""), language_code)
+        code = languages[len(plans)]
+        heading = drop_section_number(clean_label(section.get("heading", ""), code), len(plans) + 1)
+        summary = clean_text(section.get("summary", ""), code)
         element = section.get("element") if section.get("element") in ("table", "list") else "none"
 
         if heading:
-            plans.append({"heading": heading, "summary": summary, "element": element})
+            plans.append({"heading": heading, "summary": summary, "element": element, "language": code})
 
-    title = clean_label(data.get("title", ""), language_code)
-    labels = [title] + [plan["heading"] for plan in plans]
+    title = clean_label(data.get("title", ""), languages[0])
+    labels = [(title, languages[0])] + [(plan["heading"], plan["language"]) for plan in plans]
 
     # Check each heading on its own, so one mixed-up heading ("सolar Energy") can't hide among good ones
     if len(plans) < count or not title or not all(
-        in_language(label, language_code) and not stray_latin_words(label, language_code) for label in labels
+        in_language(label, code) and not stray_latin_words(label, code) for label, code in labels
     ):
         return None
 
     return {"title": title, "sections": ensure_variety(plans)}
 
 
-def make_outline(topic, pages, language_code, model):
+def make_outline(topic, pages, mix, model):
     count = section_count(pages)
-    prompt = outline_prompt(topic, pages, count, language_code)
+    languages = section_languages(count, mix)
+    prompt = outline_prompt(topic, pages, count, languages)
 
     for _ in range(ATTEMPTS):
-        raw = ask(prompt, model, outline_schema(count), 2000)
-        outline = parse_outline(raw, count, language_code)
+        # About 100 tokens per section in the heaviest scripts
+        raw = ask(prompt, model, outline_schema(count), max(2000, 100 * count), context_for(count))
+        outline = parse_outline(raw, count, languages)
 
         if outline:
             return outline
 
+    names = " and ".join(LANG_CODE_MAP[code] for code in mix)
+
     raise ValueError(
-        f"The model could not plan a {LANG_CODE_MAP[language_code]} outline after {ATTEMPTS} tries. "
+        f"The model could not plan a {names} outline after {ATTEMPTS} tries. "
         "Try another model, for example one from the Gemma family for South Asian languages."
     )
 
@@ -230,8 +359,11 @@ ELEMENT_RULES = {
 
 def section_prompt(outline, index, paragraphs, words, language_code):
     plan = outline["sections"][index]
+
+    # Long outlines list headings only, to keep the prompt small
+    long = is_long(len(outline["sections"]))
     contents = "\n".join(
-        f"{i}. {section['heading']}: {section['summary']}"
+        f"{i}. {section['heading']}" + ("" if long else f": {section['summary']}")
         for i, section in enumerate(outline["sections"], 1)
     )
 
@@ -313,8 +445,27 @@ def section_problems(section, plan, paragraphs, language_code):
 
     if plan["element"] == "table" and (not table or len(table["headers"]) < 2 or len(table["rows"]) < 2):
         problems.append("table incomplete")
+    elif table and not short_texts_in_language(table["headers"] + sum(table["rows"], []), language_code):
+        problems.append("table in wrong language")
+
+    if section["list"] and not short_texts_in_language(section["list"], language_code):
+        problems.append("list in wrong language")
 
     return problems
+
+
+def short_texts_in_language(texts, language_code):
+    # Cells and list items are short and often just names ("Apollo 11"), so a majority is enough
+    text = " ".join(texts)
+
+    if not any(c.isalpha() for c in text):
+        return True
+
+    return (
+        script_share(text, language_code) >= SHORT_TEXT_SCRIPT_SHARE
+        and not has_foreign_letters(text, language_code)
+        and not stray_latin_words(text, language_code)
+    )
 
 
 def strip_foreign_letters(section, language_code):
@@ -345,7 +496,9 @@ def write_section(outline, index, words, language_code, model):
     tries = []
 
     for _ in range(ATTEMPTS):
-        section = parse_section(ask(prompt, model, section_schema(paragraphs, plan["element"]), 3000), plan, language_code)
+        context = context_for(len(outline["sections"]))
+        raw = ask(prompt, model, section_schema(paragraphs, plan["element"]), 3000, context)
+        section = parse_section(raw, plan, language_code)
 
         if section is None:
             continue
@@ -378,17 +531,18 @@ def write_section(outline, index, words, language_code, model):
     print(f"  Warning: kept the best of {ATTEMPTS} tries for \"{plan['heading']}\" ({', '.join(best_problems)})")
 
     # Keep the parts that passed, so the document stays well formed
-    if "table incomplete" in best_problems:
+    if "table incomplete" in best_problems or "table in wrong language" in best_problems:
         best["table"] = None
 
-    if "list too short" in best_problems:
+    if "list too short" in best_problems or "list in wrong language" in best_problems:
         best["list"] = []
 
     return best
 
 
-def ask(prompt, model, schema, max_tokens):
-    raw = call_llm(prompt, model, schema=schema, temperature=TEMPERATURE, max_tokens=max_tokens)
+def ask(prompt, model, schema, max_tokens, context=None):
+    options = {"context": context} if context else {}
+    raw = call_llm(prompt, model, schema=schema, temperature=TEMPERATURE, max_tokens=max_tokens, **options)
 
     if raw is None:
         raise RuntimeError("Could not get a reply from Ollama. Is it running?")
@@ -396,8 +550,9 @@ def ask(prompt, model, schema, max_tokens):
     return raw
 
 
-def generate_document(topic, pages, language_code, model):
-    outline = make_outline(topic, pages, language_code, model)
+def generate_document(topic, pages, language, model):
+    mix = as_mix(language)
+    outline = make_outline(topic, pages, mix, model)
     count = len(outline["sections"])
     words = pages * WORDS_PER_PAGE // count
 
@@ -407,6 +562,14 @@ def generate_document(topic, pages, language_code, model):
 
     for index, plan in enumerate(outline["sections"]):
         print(f"  Writing section {index + 1} of {count}: {plan['heading']}")
-        sections.append(write_section(outline, index, words, language_code, model))
+        # Don't let a table eat more than a third of a short section
+        budget = words - min(ELEMENT_WORDS[plan["element"]], words // 3)
+        section = write_section(outline, index, budget, plan["language"], model)
+        sections.append({**section, "language": plan["language"]})
 
-    return {"title": outline["title"], "topic": topic, "language": language_code, "sections": sections}
+    document = {"title": outline["title"], "topic": topic, "language": ",".join(mix), "sections": sections}
+
+    if len(mix) > 1:
+        document["mix"] = mix
+
+    return document
