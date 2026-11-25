@@ -5,7 +5,7 @@ import re
 import unicodedata
 from xml.sax.saxutils import escape
 
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import CondPageBreak, SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_JUSTIFY, TA_LEFT, TA_RIGHT
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -224,6 +224,9 @@ CELL_PADDING = 5
 BULLET_WIDTH = 14
 LIST_INDENT = 12
 
+# Room a heading needs below it (itself plus about four body lines) before it moves to the next page
+HEADING_ROOM = 100
+
 
 def save_document_json(document, filename="document.json"):
     with open(output_path(filename), "w", encoding="utf-8") as f:
@@ -242,7 +245,6 @@ def document_styles(language_code):
     heading.textColor = ACCENT
     heading.spaceBefore = 14
     heading.spaceAfter = 6
-    heading.keepWithNext = 1
 
     body = make_style("DocBody", language_code, 11, base["Normal"])
     body.alignment = TA_RIGHT if rtl else TA_JUSTIFY
@@ -307,6 +309,12 @@ def data_table(table, styles, language_code, width):
     return t
 
 
+def table_start_height(table, width, rows=3):
+    # Room for the header and two rows, so a table never leaves just its header and one row at a page bottom
+    table.wrap(width, 10 ** 6)
+    return sum(table._rowHeights[:rows]) + 4
+
+
 def save_document_pdf(document, language_code, filename="document.pdf"):
     path = output_path(filename)
     title = str(document.get("title") or "")
@@ -322,6 +330,9 @@ def save_document_pdf(document, language_code, filename="document.pdf"):
             continue
 
         if section.get("heading"):
+            # Keeping the heading with its whole first paragraph pushed both to the next page and
+            # left a gap; this only moves the heading when it would sit at the very bottom
+            elements.append(CondPageBreak(HEADING_ROOM))
             elements.extend(paragraphs(str(section["heading"]), styles["heading"], language_code, width, bold=True))
 
         for text in section.get("paragraphs") or []:
@@ -337,8 +348,10 @@ def save_document_pdf(document, language_code, filename="document.pdf"):
         table = section.get("table")
 
         if isinstance(table, dict) and table.get("headers"):
+            data = data_table(table, styles, language_code, width)
+            elements.append(CondPageBreak(table_start_height(data, width)))
             elements.append(Spacer(1, 4))
-            elements.append(data_table(table, styles, language_code, width))
+            elements.append(data)
             elements.append(Spacer(1, 12))
 
     doc.build(elements)

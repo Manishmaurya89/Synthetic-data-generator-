@@ -70,3 +70,12 @@ def test_document_pdf_in_every_language(output_dir):
 def test_document_json_keeps_the_script(output_dir):
     output.save_document_json({"title": "जल चक्र", "sections": []})
     assert '"जल चक्र"' in (output_dir / "document.json").read_text(encoding="utf-8")
+
+
+def test_a_table_starts_with_its_header_and_two_rows_together():
+    styles = output.document_styles("eng")
+    table = {"headers": ["Year", "Event"], "rows": [[str(1960 + i), "Something happened"] for i in range(10)]}
+    data = output.data_table(table, styles, "eng", 400)
+
+    needed = output.table_start_height(data, 400)
+    assert 0 < needed < sum(data._rowHeights) and needed >= sum(data._rowHeights[:3])

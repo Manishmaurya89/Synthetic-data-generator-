@@ -77,7 +77,7 @@ Pass the settings as flags to use it in scripts and pipelines:
 | `--format` | `txt`, `json`, `csv`, `pdf`, `audio`, or `document` for a structured article | required |
 | `--samples` | Number of sentences (sentence datasets only) | required |
 | `--mix` | Percentage per language, in `--langs` order (sentence datasets only) | even split |
-| `--pages` | Document length, about 400 words a page, up to 10 (documents only) | `2` |
+| `--pages` | Document length, about 400 words a page, up to 50 (documents only) | `2` |
 | `--model` | Ollama model to use | `llama3` |
 
 Run `python main.py --help` for the full list.
@@ -176,8 +176,8 @@ Topic + language + pages
   -> Export  document.json and document.pdf
 ```
 
-Each page asks for about 400 words, split over more sections as the document grows: 4 sections for one page, up to
-10 for long documents. The model writes the facts, so treat them as synthetic: they read well but aren't checked.
+Each page asks for about 400 words, split over more sections as the document grows: 4 sections for one page, 10 for
+8 to 10 pages, and one section a page beyond that, up to 50 pages. The model writes the facts, so treat them as synthetic: they read well but aren't checked.
 
 ## Project layout
 

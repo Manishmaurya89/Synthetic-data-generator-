@@ -57,6 +57,9 @@ def run_system(language_codes, total_samples, mix_ratio, format_type, topic, mod
 def run_document(language_code, topic, pages, model):
     print(f"\nWriting a {pages}-page {LANG_CODE_MAP[language_code]} document about \"{topic}\"...")
 
+    if pages > 10:
+        print("Long documents take a while: roughly a minute a page with a mid-size model.")
+
     document = generate_document(topic, pages, language_code, model)
 
     save_document_json(document)

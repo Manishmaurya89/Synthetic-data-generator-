@@ -35,11 +35,14 @@ def clean_output(text, language_code):
     return list(dict.fromkeys(cleaned))
 
 
-def call_llm(prompt, model, schema=None, temperature=0.9, max_tokens=None):
+def call_llm(prompt, model, schema=None, temperature=0.9, max_tokens=None, context=None):
     options = {"temperature": temperature}
 
     if max_tokens:
         options["num_predict"] = max_tokens
+
+    if context:
+        options["num_ctx"] = context
 
     payload = {"model": model, "prompt": prompt, "stream": False, "options": options}
 

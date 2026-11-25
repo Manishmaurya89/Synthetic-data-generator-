@@ -93,7 +93,7 @@ def test_document_settings():
     args.pages = "3"
     assert main.document_settings_from_args(args)[2] == 3
 
-    for langs, pages in (("hin,eng", "2"), ("hin", "0"), ("hin", "11")):
+    for langs, pages in (("hin,eng", "2"), ("hin", "0"), ("hin", "51")):
         with pytest.raises(ValueError):
             main.document_settings_from_args(SimpleNamespace(langs=langs, topic="x", pages=pages))
 
