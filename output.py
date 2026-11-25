@@ -224,7 +224,7 @@ CELL_PADDING = 5
 BULLET_WIDTH = 14
 LIST_INDENT = 12
 
-# Room a heading needs below it (itself plus about four body lines) before it moves to the next page
+# A heading plus about four lines; with less room left it moves to the next page
 HEADING_ROOM = 100
 
 
@@ -310,7 +310,7 @@ def data_table(table, styles, language_code, width):
 
 
 def table_start_height(table, width, rows=3):
-    # Room for the header and two rows, so a table never leaves just its header and one row at a page bottom
+    # Header plus two rows, so a table doesn't start with a lone row at the bottom of a page
     table.wrap(width, 10 ** 6)
     return sum(table._rowHeights[:rows]) + 4
 
@@ -329,13 +329,11 @@ def save_document_pdf(document, language_code, filename="document.pdf"):
         if not isinstance(section, dict):
             continue
 
-        # A mixed-language document sets each section in its own language's font and direction
+        # Sections can be in different languages
         code = section.get("language") if section.get("language") in FONT_FILES else language_code
         styles = styles_by_language.setdefault(code, document_styles(code))
 
         if section.get("heading"):
-            # Keeping the heading with its whole first paragraph pushed both to the next page and
-            # left a gap; this only moves the heading when it would sit at the very bottom
             elements.append(CondPageBreak(HEADING_ROOM))
             elements.extend(paragraphs(str(section["heading"]), styles["heading"], code, width, bold=True))
 

@@ -124,7 +124,6 @@ def parse_format(text, formats=FORMATS):
 
 
 def parse_document_languages(text, percents=None):
-    # Percentages per language, in the order given; several languages take turns section by section
     language_codes = parse_languages(text)
 
     if len(language_codes) == 1:
@@ -207,7 +206,7 @@ def get_document_input():
     print("\nSupported language codes:")
     print(", ".join(LANG_CODE_MAP.keys()))
 
-    language_codes = parse_languages(input("\nEnter language code(s) (e.g. eng, or hin,eng to switch between sections): "))
+    language_codes = parse_languages(input("\nEnter language code(s) (e.g. eng or hin,eng): "))
     percents = None
 
     if len(language_codes) > 1:
@@ -255,7 +254,7 @@ def parse_args():
                'python main.py --format document --langs hin,eng --mix 50,50 --topic "water cycle" --pages 3'
     )
     parser.add_argument("--model", help=f"Ollama model to use (default: {DEFAULT_MODEL})")
-    parser.add_argument("--langs", help="language codes, comma-separated, e.g. hin,eng (a document switches language between sections)")
+    parser.add_argument("--langs", help="language codes, comma-separated, e.g. hin,eng")
     parser.add_argument("--samples", help="number of sentences to generate")
     parser.add_argument("--topic", help="what the sentences or document should be about")
     parser.add_argument("--format", help=f"output format: {', '.join(FORMATS)}, or {DOCUMENT} for a structured article")
