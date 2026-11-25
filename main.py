@@ -5,10 +5,9 @@ from generator import generate_sentences
 from models import choose_model, resolve_model
 from mixer import allocate_counts, mix_languages
 from output import save_txt, save_json, save_csv, save_pdf, save_document_json, save_document_pdf
-from media import generate_audio_dataset
 from config import DEFAULT_MODEL, LANG_CODE_MAP, OUTPUT_DIR
 
-FORMATS = ("txt", "json", "csv", "pdf", "audio")
+FORMATS = ("txt", "json", "csv", "pdf")
 DOCUMENT = "document"
 DEFAULT_PAGES = 2
 
@@ -43,10 +42,6 @@ def run_system(language_codes, total_samples, mix_ratio, format_type, topic, mod
         save_csv(data)
     elif format_type == "pdf":
         save_pdf(data, topic)
-    elif format_type == "audio":
-        if generate_audio_dataset(data) == 0:
-            print("No audio could be created (gTTS needs an internet connection).")
-            return
     else:
         print("Invalid format selected!")
         return
@@ -54,16 +49,23 @@ def run_system(language_codes, total_samples, mix_ratio, format_type, topic, mod
     print(f"{format_type.upper()} dataset generated successfully in {OUTPUT_DIR}")
 
 
-def run_document(language_code, topic, pages, model):
-    print(f"\nWriting a {pages}-page {LANG_CODE_MAP[language_code]} document about \"{topic}\"...")
+def describe_mix(mix):
+    if len(mix) == 1:
+        return LANG_CODE_MAP[next(iter(mix))]
+
+    return " and ".join(f"{percent}% {LANG_CODE_MAP[code]}" for code, percent in mix.items())
+
+
+def run_document(mix, topic, pages, model):
+    print(f"\nWriting a {pages}-page {describe_mix(mix)} document about \"{topic}\"...")
 
     if pages > 10:
         print("Long documents take a while: roughly a minute a page with a mid-size model.")
 
-    document = generate_document(topic, pages, language_code, model)
+    document = generate_document(topic, pages, mix, model)
 
     save_document_json(document)
-    save_document_pdf(document, language_code)
+    save_document_pdf(document, next(iter(mix)))
 
     sections = document["sections"]
     words = sum(len(p.split()) for section in sections for p in section["paragraphs"])
@@ -73,6 +75,12 @@ def run_document(language_code, topic, pages, model):
     counts = [(len(sections), "section"), (words, "word"), (lists, "list"), (tables, "table")]
     summary = ", ".join(f"{n} {name}{'' if n == 1 else 's'}" for n, name in counts)
     print(f"\n\"{document['title']}\": {summary}")
+
+    if len(mix) > 1:
+        per_language = [
+            f"{sum(section.get('language') == code for section in sections)} in {LANG_CODE_MAP[code]}" for code in mix
+        ]
+        print(f"Sections: {', '.join(per_language)}")
     print(f"Saved document.json and document.pdf in {OUTPUT_DIR}")
 
 
@@ -115,13 +123,14 @@ def parse_format(text, formats=FORMATS):
     return format_type
 
 
-def parse_document_language(text):
+def parse_document_languages(text, percents=None):
+    # Percentages per language, in the order given; several languages take turns section by section
     language_codes = parse_languages(text)
 
-    if len(language_codes) != 1:
-        raise ValueError("A document is written in one language. Enter a single language code")
+    if len(language_codes) == 1:
+        return {language_codes[0]: 100}
 
-    return language_codes[0]
+    return parse_mix(language_codes, percents) if percents else even_mix(language_codes)
 
 
 def parse_pages(value):
@@ -183,7 +192,7 @@ def get_user_input():
 
 def ask_wants_document():
     print("\nWhat do you want to make?")
-    print("  1. Sentence dataset: one sentence per line, as TXT, JSON, CSV, PDF or MP3")
+    print("  1. Sentence dataset: one sentence per line, as TXT, JSON, CSV or PDF")
     print("  2. Document: a full article with headings, paragraphs, lists and tables, as JSON and PDF")
 
     choice = input("Choice [1]: ").strip() or "1"
@@ -198,19 +207,27 @@ def get_document_input():
     print("\nSupported language codes:")
     print(", ".join(LANG_CODE_MAP.keys()))
 
-    language_code = parse_document_language(input("\nEnter one language code (e.g. eng): "))
+    language_codes = parse_languages(input("\nEnter language code(s) (e.g. eng, or hin,eng to switch between sections): "))
+    percents = None
+
+    if len(language_codes) > 1:
+        print("\nEnter percentage of sections for each language (must sum to 100):")
+        percents = [to_int(input(f"  {code} (%): "), 0) for code in language_codes]
+
+    mix = parse_document_languages(",".join(language_codes), percents)
     topic = parse_topic(input("Enter topic: "))
     pages = parse_pages(input(f"Number of pages [{DEFAULT_PAGES}]: ").strip() or DEFAULT_PAGES)
 
-    return language_code, topic, pages
+    return mix, topic, pages
 
 
 def document_settings_from_args(args):
-    language_code = parse_document_language(args.langs)
+    percents = [to_int(p, 0) for p in args.mix.split(",")] if getattr(args, "mix", None) else None
+    mix = parse_document_languages(args.langs, percents)
     topic = parse_topic(args.topic)
     pages = parse_pages(args.pages or DEFAULT_PAGES)
 
-    return language_code, topic, pages
+    return mix, topic, pages
 
 
 def settings_from_args(args):
@@ -235,14 +252,15 @@ def parse_args():
                     "Run without options to answer the questions interactively.",
         epilog=f"Language codes: {', '.join(LANG_CODE_MAP)}. "
                'Examples: python main.py --langs hin,eng --mix 60,40 --samples 500 --topic "water cycle" --format json  |  '
-               'python main.py --format document --langs hin --topic "water cycle" --pages 3'
+               'python main.py --format document --langs hin,eng --mix 50,50 --topic "water cycle" --pages 3'
     )
     parser.add_argument("--model", help=f"Ollama model to use (default: {DEFAULT_MODEL})")
-    parser.add_argument("--langs", help="language codes, comma-separated, e.g. hin,eng (one code for a document)")
+    parser.add_argument("--langs", help="language codes, comma-separated, e.g. hin,eng (a document switches language between sections)")
     parser.add_argument("--samples", help="number of sentences to generate")
     parser.add_argument("--topic", help="what the sentences or document should be about")
     parser.add_argument("--format", help=f"output format: {', '.join(FORMATS)}, or {DOCUMENT} for a structured article")
-    parser.add_argument("--mix", help="percentage per language in --langs order, e.g. 60,40 (default: even split)")
+    parser.add_argument("--mix", help="percentage per language in --langs order, e.g. 60,40 (default: even split); "
+                                        "for a document, the share of sections")
     parser.add_argument("--pages", help=f"document length, about 400 words per page (default: {DEFAULT_PAGES})")
 
     args = parser.parse_args()
@@ -256,8 +274,8 @@ def parse_args():
         if None in (args.langs, args.topic):
             parser.error("--langs and --topic are required for --format document")
 
-        if args.samples is not None or args.mix is not None:
-            parser.error("--samples and --mix are for sentence datasets. Use --pages to set a document's length")
+        if args.samples is not None:
+            parser.error("--samples is for sentence datasets. Use --pages to set a document's length")
 
     else:
         if None in (args.langs, args.samples, args.topic, args.format):

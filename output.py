@@ -320,35 +320,39 @@ def save_document_pdf(document, language_code, filename="document.pdf"):
     title = str(document.get("title") or "")
 
     doc = SimpleDocTemplate(path, leftMargin=56, rightMargin=56, topMargin=56, bottomMargin=56, title=title)
-    styles = document_styles(language_code)
+    styles_by_language = {language_code: document_styles(language_code)}
     width = doc.width
 
-    elements = paragraphs(title, styles["title"], language_code, width, bold=True)
+    elements = paragraphs(title, styles_by_language[language_code]["title"], language_code, width, bold=True)
 
     for section in document.get("sections") or []:
         if not isinstance(section, dict):
             continue
 
+        # A mixed-language document sets each section in its own language's font and direction
+        code = section.get("language") if section.get("language") in FONT_FILES else language_code
+        styles = styles_by_language.setdefault(code, document_styles(code))
+
         if section.get("heading"):
             # Keeping the heading with its whole first paragraph pushed both to the next page and
             # left a gap; this only moves the heading when it would sit at the very bottom
             elements.append(CondPageBreak(HEADING_ROOM))
-            elements.extend(paragraphs(str(section["heading"]), styles["heading"], language_code, width, bold=True))
+            elements.extend(paragraphs(str(section["heading"]), styles["heading"], code, width, bold=True))
 
         for text in section.get("paragraphs") or []:
-            elements.extend(paragraphs(str(text), styles["body"], language_code, width))
+            elements.extend(paragraphs(str(text), styles["body"], code, width))
             elements.append(Spacer(1, 8))
 
         items = [str(item) for item in section.get("list") or [] if str(item).strip()]
 
         if items:
-            elements.append(bullet_list(items, styles["body"], language_code, width))
+            elements.append(bullet_list(items, styles["body"], code, width))
             elements.append(Spacer(1, 8))
 
         table = section.get("table")
 
         if isinstance(table, dict) and table.get("headers"):
-            data = data_table(table, styles, language_code, width)
+            data = data_table(table, styles, code, width)
             elements.append(CondPageBreak(table_start_height(data, width)))
             elements.append(Spacer(1, 4))
             elements.append(data)

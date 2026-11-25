@@ -4,6 +4,7 @@ import unicodedata
 
 from config import LANG_CODE_MAP, SCRIPT_NAMES
 from generator import LIST_MARKER, MIN_SCRIPT_SHARE, call_llm
+from mixer import allocate_counts
 from scripts import has_foreign_letters, in_script, script_share
 
 
@@ -119,6 +120,41 @@ def language_rule(language_code):
     return f"Write every word in {language}, in {SCRIPT_NAMES[language_code]} script, apart from names, acronyms and numbers."
 
 
+def as_mix(language):
+    # A single language code, or percentages per language like {"hin": 50, "eng": 50}
+    return {language: 100} if isinstance(language, str) else dict(language)
+
+
+def section_languages(count, mix):
+    # Each section is in one language; the languages take turns, as evenly as their shares allow
+    counts = allocate_counts(count, mix)
+    order = list(mix)
+    used = dict.fromkeys(order, 0)
+    languages = []
+
+    for i in range(count):
+        open_codes = [code for code in order if used[code] < counts[code]]
+        code = max(open_codes, key=lambda c: (counts[c] * (i + 1) / count - used[c], -order.index(c)))
+        used[code] += 1
+        languages.append(code)
+
+    return languages
+
+
+def outline_language_rule(languages):
+    if len(set(languages)) == 1:
+        return f"{language_rule(languages[0])} This applies to the title, headings and summaries."
+
+    per_section = "\n".join(
+        f"{i}. {LANG_CODE_MAP[code]} ({SCRIPT_NAMES[code]} script)" for i, code in enumerate(languages, 1)
+    )
+
+    return f"""The article switches language between sections. Write the title in {LANG_CODE_MAP[languages[0]]}, and
+write each section's heading and summary entirely in the language listed for it, apart from names, acronyms and
+numbers:
+{per_section}"""
+
+
 def outline_schema(count):
     return {
         "type": "object",
@@ -148,7 +184,7 @@ def elements_wanted(count):
     return max(1, round(max(1, count - 2) / 3))
 
 
-def outline_prompt(topic, pages, count, language_code):
+def outline_prompt(topic, pages, count, languages):
     wanted = elements_wanted(count)
     summary_length = " (under 15 words)" if is_long(count) else ""
 
@@ -165,7 +201,7 @@ Plan exactly {count} sections:
   exactly {wanted}, spread through the article rather than side by side. Every other section is "none".
 - Don't number the headings.
 
-{language_rule(language_code)} This applies to the title, headings and summaries.
+{outline_language_rule(languages)}
 Return only JSON.
 """
 
@@ -210,7 +246,9 @@ def ensure_variety(plans):
     return plans
 
 
-def parse_outline(raw, count, language_code):
+def parse_outline(raw, count, languages):
+    # languages: one code for the whole document, or a list with each section's code
+    languages = [languages] * count if isinstance(languages, str) else languages
     data = parse_json(raw)
 
     if not data or not isinstance(data.get("sections"), list):
@@ -222,39 +260,43 @@ def parse_outline(raw, count, language_code):
         if not isinstance(section, dict):
             continue
 
-        heading = drop_section_number(clean_label(section.get("heading", ""), language_code), len(plans) + 1)
-        summary = clean_text(section.get("summary", ""), language_code)
+        code = languages[len(plans)]
+        heading = drop_section_number(clean_label(section.get("heading", ""), code), len(plans) + 1)
+        summary = clean_text(section.get("summary", ""), code)
         element = section.get("element") if section.get("element") in ("table", "list") else "none"
 
         if heading:
-            plans.append({"heading": heading, "summary": summary, "element": element})
+            plans.append({"heading": heading, "summary": summary, "element": element, "language": code})
 
-    title = clean_label(data.get("title", ""), language_code)
-    labels = [title] + [plan["heading"] for plan in plans]
+    title = clean_label(data.get("title", ""), languages[0])
+    labels = [(title, languages[0])] + [(plan["heading"], plan["language"]) for plan in plans]
 
     # Check each heading on its own, so one mixed-up heading ("सolar Energy") can't hide among good ones
     if len(plans) < count or not title or not all(
-        in_language(label, language_code) and not stray_latin_words(label, language_code) for label in labels
+        in_language(label, code) and not stray_latin_words(label, code) for label, code in labels
     ):
         return None
 
     return {"title": title, "sections": ensure_variety(plans)}
 
 
-def make_outline(topic, pages, language_code, model):
+def make_outline(topic, pages, mix, model):
     count = section_count(pages)
-    prompt = outline_prompt(topic, pages, count, language_code)
+    languages = section_languages(count, mix)
+    prompt = outline_prompt(topic, pages, count, languages)
 
     for _ in range(ATTEMPTS):
         # Each planned section takes about 100 tokens in the longest scripts
         raw = ask(prompt, model, outline_schema(count), max(2000, 100 * count), context_for(count))
-        outline = parse_outline(raw, count, language_code)
+        outline = parse_outline(raw, count, languages)
 
         if outline:
             return outline
 
+    names = " and ".join(LANG_CODE_MAP[code] for code in mix)
+
     raise ValueError(
-        f"The model could not plan a {LANG_CODE_MAP[language_code]} outline after {ATTEMPTS} tries. "
+        f"The model could not plan a {names} outline after {ATTEMPTS} tries. "
         "Try another model, for example one from the Gemma family for South Asian languages."
     )
 
@@ -486,8 +528,10 @@ def ask(prompt, model, schema, max_tokens, context=None):
     return raw
 
 
-def generate_document(topic, pages, language_code, model):
-    outline = make_outline(topic, pages, language_code, model)
+def generate_document(topic, pages, language, model):
+    # language: one code, or percentages per language to switch language between sections
+    mix = as_mix(language)
+    outline = make_outline(topic, pages, mix, model)
     count = len(outline["sections"])
     words = pages * WORDS_PER_PAGE // count
 
@@ -497,6 +541,12 @@ def generate_document(topic, pages, language_code, model):
 
     for index, plan in enumerate(outline["sections"]):
         print(f"  Writing section {index + 1} of {count}: {plan['heading']}")
-        sections.append(write_section(outline, index, words - ELEMENT_WORDS[plan["element"]], language_code, model))
+        section = write_section(outline, index, words - ELEMENT_WORDS[plan["element"]], plan["language"], model)
+        sections.append({**section, "language": plan["language"]})
 
-    return {"title": outline["title"], "topic": topic, "language": language_code, "sections": sections}
+    document = {"title": outline["title"], "topic": topic, "language": ",".join(mix), "sections": sections}
+
+    if len(mix) > 1:
+        document["mix"] = mix
+
+    return document

@@ -32,7 +32,7 @@ GitHub Actions runs them on every push and pull request.
 
 This is the best first contribution.
 
-1. **Register** the language code in every table in `config.py`: `LANG_CODE_MAP`, `GTTS_LANG_MAP`, `SCRIPT_NAMES`,
+1. **Register** the language code in every table in `config.py`: `LANG_CODE_MAP`, `SCRIPT_NAMES`,
    `SCRIPT_RANGES` and `FONT_FILES` (plus `RTL_LANGUAGES` if it's written right-to-left).
 2. **Write** a prompt in that language and add it to `PROMPTS` in `generator.py`. Ask a native speaker to check it if you
    can; a natural prompt gets noticeably better sentences.

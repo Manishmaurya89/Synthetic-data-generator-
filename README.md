@@ -23,9 +23,8 @@ dataset in any of 13 languages. It can also write whole structured documents.
 ## Why run it locally
 
 Hosted APIs charge per token and cap how much you can generate on a free plan. A local model costs nothing once
-it's downloaded and only stops when your hardware does. Your prompts and data also stay on your machine. The one
-exception is the audio format, which uses Google's online text-to-speech (gTTS). And you aren't stuck with one
-provider's catalog: any model in the [Ollama library](https://ollama.com/library) works.
+it's downloaded and only stops when your hardware does. Your prompts and data also stay on your machine, and
+nothing needs the internet once the model is downloaded. And you aren't stuck with one provider's catalog: any model in the [Ollama library](https://ollama.com/library) works.
 
 ## What it can do
 
@@ -33,11 +32,11 @@ provider's catalog: any model in the [Ollama library](https://ollama.com/library
 - Mix languages by percentage, for example 60% Hindi and 40% English, and the counts always add up exactly.
 - Let you pick any installed Ollama model from a menu, or download a new one by typing its name.
 - Throw out numbering, intro lines, duplicates and sentences in the wrong language.
-- Save to TXT, JSON, CSV, PDF or MP3 audio.
+- Save to TXT, JSON, CSV or PDF.
 - Run without any questions, using command-line flags, so you can script it.
 - Render PDFs in every script, with proper letter shaping and right-to-left Urdu.
 - Write full structured documents with headings, paragraphs, bullet lists and tables in any of the 13 languages,
-  as JSON and PDF.
+  or switching language between sections (for example 50% Hindi, 50% English), as JSON and PDF.
 
 ## Quick start
 
@@ -68,15 +67,16 @@ Pass the settings as flags to use it in scripts and pipelines:
 ```bash
 .venv/bin/python main.py --langs hin,eng --mix 60,40 --samples 500 --topic "water cycle" --format json --model gemma4
 .venv/bin/python main.py --format document --langs hin --topic "Renewable energy in India" --pages 3
+.venv/bin/python main.py --format document --langs hin,eng --mix 50,50 --topic "History of the internet" --pages 5
 ```
 
 | Flag | Meaning | Default |
 | --- | --- | --- |
-| `--langs` | Language codes, comma-separated (one code for a document) | required |
+| `--langs` | Language codes, comma-separated | required |
 | `--topic` | What the sentences or document are about | required |
-| `--format` | `txt`, `json`, `csv`, `pdf`, `audio`, or `document` for a structured article | required |
+| `--format` | `txt`, `json`, `csv`, `pdf`, or `document` for a structured article | required |
 | `--samples` | Number of sentences (sentence datasets only) | required |
-| `--mix` | Percentage per language, in `--langs` order (sentence datasets only) | even split |
+| `--mix` | Percentage per language, in `--langs` order. For a document, the share of sections in each language | even split |
 | `--pages` | Document length, about 400 words a page, up to 50 (documents only) | `2` |
 | `--model` | Ollama model to use | `llama3` |
 
@@ -134,13 +134,12 @@ Every file is saved in `outputs/`.
 | `json` | `dataset.json` | `[{"text": "...", "language": "hin"}, ...]` |
 | `csv` | `dataset.csv` | `text` and `language` columns |
 | `pdf` | `dataset.pdf` | The topic as a title, then every sentence in its script's own font |
-| `audio` | `audio/*.mp3` + `audio/metadata.csv` | One clip per sentence in that language's voice, plus a CSV linking each clip to its text |
-| `document` | `document.json` + `document.pdf` | A full article: title, sections with headings, paragraphs, bullet lists and tables |
+| `document` | `document.json` + `document.pdf` | A full article: title, sections with headings, paragraphs, bullet lists and tables. Each section records its language |
 
 ## Example output
 
 The [`examples/`](examples) folder has real, unedited datasets made with this tool: 25 sentences in each of the 13
-languages, a mixed Hindi and English dataset in JSON and CSV, the full PDF and a few audio clips.
+languages, a mixed Hindi and English dataset in JSON and CSV, and the full PDF.
 
 ## How it works
 
@@ -151,7 +150,7 @@ Topic + languages + model
   -> Check    keep only sentences written in the right script
   -> Dedupe   drop repeats, then ask again until there are enough unique sentences
   -> Mix      split the samples by your percentages and shuffle
-  -> Export   TXT, JSON, CSV, PDF or MP3
+  -> Export   TXT, JSON, CSV or PDF
 ```
 
 A few rules keep the data clean. Every sentence in a dataset is unique. If the model can't come up with enough,
@@ -188,7 +187,6 @@ generator.py       prompts the LLM, then cleans and checks every sentence
 document.py        plans, writes and checks structured documents
 mixer.py           splits samples between languages and shuffles them
 output.py          writes TXT, JSON, CSV and PDF files, including document PDFs
-media.py           writes MP3 clips and their metadata
 scripts.py         detects which script a piece of text is written in
 config.py          languages, fonts, default model and paths
 fonts/             Noto fonts for every supported script
@@ -198,7 +196,6 @@ examples/          real generated datasets
 
 ## What's next
 
-- Offline text-to-speech, so audio datasets don't need the internet
 - Support for other local servers such as LM Studio and llama.cpp
 - More South Asian languages, such as Odia, Assamese and Kashmiri
 

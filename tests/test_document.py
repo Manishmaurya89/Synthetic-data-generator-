@@ -4,8 +4,8 @@ import pytest
 
 import document
 from document import (
-    clean_text, drop_section_number, ensure_variety, generate_document, paragraph_count, section_count, sentence_count,
-    short_texts_in_language, stray_latin_words
+    clean_text, drop_section_number, ensure_variety, generate_document, paragraph_count, section_count,
+    section_languages, sentence_count, short_texts_in_language, stray_latin_words
 )
 
 ENGLISH = "The water cycle moves water between the oceans, the air and the land in a loop that never stops."
@@ -343,3 +343,54 @@ def test_sections_with_a_table_or_list_get_fewer_words(fake_llm):
     budget = {prompt.split('Write section ')[1].split(',')[0]: prompt.split("about ")[1].split(" words")[0]
               for prompt in calls[1:]}
     assert budget["2"] == "280" and budget["3"] == "360" and budget["1"] == "400"
+
+
+def test_languages_take_turns_by_their_share():
+    assert section_languages(6, {"hin": 50, "eng": 50}) == ["hin", "eng"] * 3
+
+    thirty = section_languages(30, {"hin": 50, "eng": 50})
+    assert thirty.count("hin") == thirty.count("eng") == 15
+
+    ten = section_languages(10, {"hin": 70, "eng": 30})
+    assert ten.count("hin") == 7 and ten.count("eng") == 3
+    assert "eng,eng" not in ",".join(ten)  # the smaller share is spread out, not bunched
+
+    assert section_languages(4, {"hin": 100}) == ["hin"] * 4
+    assert section_languages(4, {"hin": 50, "eng": 50, "urd": 0}).count("urd") == 0
+
+
+def mixed_outline(languages):
+    sections = [
+        {"heading": "भाग " + str(i) if code == "hin" else f"Part {i}", "summary": "...", "element": "none"}
+        for i, code in enumerate(languages, 1)
+    ]
+    return json.dumps({"title": "जल चक्र", "sections": sections})
+
+
+def reply_in_section_language(prompt):
+    return section_reply(prompt, HINDI if "Write every word in Hindi" in prompt else ENGLISH)
+
+
+def test_writes_a_document_that_switches_language_between_sections(fake_llm):
+    calls = fake_llm(mixed_outline(["hin", "eng"] * 3), reply_in_section_language)
+    doc = generate_document("water cycle", 3, {"hin": 50, "eng": 50}, "m")
+
+    assert [s["language"] for s in doc["sections"]] == ["hin", "eng"] * 3
+    assert doc["language"] == "hin,eng" and doc["mix"] == {"hin": 50, "eng": 50}
+    assert all(s["paragraphs"][0].startswith("जल" if s["language"] == "hin" else "The") for s in doc["sections"])
+    assert "1. Hindi (Devanagari script)" in calls[0] and "2. English (Latin script)" in calls[0]
+
+
+def test_rejects_a_mixed_outline_with_a_heading_in_the_wrong_language(fake_llm):
+    fake_llm(mixed_outline(["hin"] * 6), reply_in_section_language)
+
+    with pytest.raises(ValueError, match="Hindi and English outline"):
+        generate_document("water cycle", 3, {"hin": 50, "eng": 50}, "m")
+
+
+def test_single_language_documents_are_unchanged(fake_llm):
+    fake_llm(outline(4))
+    doc = generate_document("water cycle", 1, "eng", "m")
+
+    assert doc["language"] == "eng" and "mix" not in doc
+    assert {s["language"] for s in doc["sections"]} == {"eng"}

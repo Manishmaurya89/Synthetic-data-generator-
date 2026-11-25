@@ -2,11 +2,17 @@
 
 ## Unreleased
 
+### Removed
+
+- The MP3 audio format, along with the gTTS dependency. It was the only part of the tool that needed the internet
+
 ### Documents
 
 - Generate structured documents from the main tool: choose "Document" at the first question, or pass
   `--format document` with `--pages`
 - Write documents in all 13 languages, with right-to-left Urdu in the PDF
+- Mix languages in a document with `--langs hin,eng --mix 50,50`: sections take turns by their share, each written,
+  checked and typeset in its own language, with the language recorded on every section in `document.json`
 - Plan an outline first, then write each section on its own, so length follows the page count and sections don't
   repeat each other
 - Write documents of up to 50 pages, with about one section a page past 10 pages and a larger context window so
